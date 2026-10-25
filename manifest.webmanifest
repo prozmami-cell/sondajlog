@@ -1,6 +1,6 @@
 {
-  "name": "SondajLog",
-  "short_name": "SondajLog",
+  "name": "Logvera",
+  "short_name": "Logvera",
   "description": "Sondaj manevra, SPT ve TCR kayıtları; sandık fotoğrafından okuma",
   "lang": "tr",
   "start_url": "./",

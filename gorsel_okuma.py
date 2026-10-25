@@ -369,35 +369,92 @@ def ornekleri_yaz(eslesme, klasor):
     return len(eslesme)
 
 
-def takoz_karakterleri(img, kutu, yan):
+TAKOZ_YONLERI = (cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_90_CLOCKWISE)
+
+
+def takozu_bul(hsv, boru_sol, boru_sag, orta_y, yan):
+    """Borunun yanındaki gri takozu bulur. Takozlar sandık bölmesinden taşan uzun, dik ve
+    açık renkli şeritlerdir; karot ve boru bölmeden kısa kalır."""
+    doygunluk, parlaklik = hsv[:, :, 1], hsv[:, :, 2]
+    acik = ((doygunluk < 50) & (parlaklik > max(90, 0.45 * np.percentile(parlaklik, 99)))).astype(np.uint8)
+    acik = cv2.morphologyEx(acik, cv2.MORPH_CLOSE, np.ones((15, 3), np.uint8))
+    dizi = np.zeros((acik.shape[1], 3), int)  # her sütunda orta_y'yi kesen en uzun açık dizi: uzunluk, üst, alt
+    for sutun in range(acik.shape[1]):
+        gecis = np.flatnonzero(np.diff(np.concatenate([[0], acik[:, sutun], [0]])))
+        for bas, son in zip(gecis[::2], gecis[1::2]):
+            if son - bas > dizi[sutun][0] and bas - 30 <= orta_y <= son + 30:
+                dizi[sutun] = (son - bas, bas, son)
+    uygun = dizi[:, 0] >= 100
+    seritler = []
+    sutun = 0
+    while sutun < len(uygun):
+        if not uygun[sutun]:
+            sutun += 1
+            continue
+        son = sutun
+        while son + 1 < len(uygun) and (uygun[son + 1] or (son + 2 < len(uygun) and uygun[son + 2])):
+            son += 1
+        ust = int(np.median(dizi[sutun:son + 1, 1]))
+        alt = int(np.median(dizi[sutun:son + 1, 2]))
+        # alt/üst sıranın takozları kaydırılmış durur; borunun hizasında olmayan şerit alınmaz
+        if 18 <= son - sutun + 1 <= 75 and abs((ust + alt) / 2 - orta_y) <= 60:
+            seritler.append((sutun, ust, son + 1, alt))
+        sutun = son + 1
+    # boru kutusu yazıya göre çizildiğinden borudan geniş olabilir; takoz borunun ortasından öteye aranır
+    boru_orta = (boru_sol + boru_sag) / 2
+    if yan == "sol":
+        return max((s for s in seritler if s[2] <= boru_orta), key=lambda s: s[2], default=None)
+    return min((s for s in seritler if s[0] >= boru_orta), key=lambda s: s[0], default=None)
+
+
+def takoz_yazisi(img, kutu, yan):
+    """Borunun solundaki/sağındaki takozun yazı maskesini (2048 ölçeğinde) ve
+    takozun fotoğraftaki yerini döndürür; takoz bulunup yazı ayrılamazsa maske None olur."""
     olcek = 2048 / max(img.shape[:2])
     x, y, w, h = (d * olcek for d in kutu)
     orta_y = y + h / 2
     if yan == "sol":
-        x0, x1 = x - 85, x + 15
+        x0, x1 = x - 140, x + 30
     else:
-        x0, x1 = x + w - 15, x + w + 85
-    y0, y1 = orta_y - 95, orta_y + 95
+        x0, x1 = x + w - 30, x + w + 140
+    y0, y1 = orta_y - 150, orta_y + 150
     x0, y0 = int(max(0, x0 / olcek)), int(max(0, y0 / olcek))
     x1, y1 = int(min(img.shape[1], x1 / olcek)), int(min(img.shape[0], y1 / olcek))
     if x1 - x0 < 10 or y1 - y0 < 10:
-        return []
+        return None, None
     pencere = cv2.resize(img[y0:y1, x0:x1], None, fx=olcek, fy=olcek, interpolation=cv2.INTER_AREA)
-
     hsv = cv2.cvtColor(pencere, cv2.COLOR_BGR2HSV)
     gri = cv2.cvtColor(pencere, cv2.COLOR_BGR2GRAY)
-    ust_sapka = cv2.morphologyEx(gri, cv2.MORPH_TOPHAT, np.ones((11, 11), np.uint8))
-    cizgi = ((ust_sapka > 30) & (hsv[:, :, 1] < 70)).astype(np.uint8)
+
+    takoz = takozu_bul(hsv, x - x0 * olcek, x + w - x0 * olcek, orta_y - y0 * olcek, yan)
+    if takoz is None:
+        return None, None
+    tx0, ty0, tx1, ty1 = takoz
+    yer = tuple(int(round(d)) for d in (x0 + tx0 / olcek, y0 + ty0 / olcek, (tx1 - tx0) / olcek, (ty1 - ty0) / olcek))
+    # takoz kenarlarındaki parlamalar yazı sanılmasın diye biraz içeriden bakılır
+    ic = gri[ty0 + 4:ty1 - 4, tx0 + 3:tx1 - 3]
+    if ic.size == 0:
+        return None, yer
+    zemin = float(np.median(ic))
+    esik = max(zemin + 20, cv2.threshold(ic, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0])
+    cizgi = np.zeros_like(gri)
+    cizgi[ty0 + 4:ty1 - 4, tx0 + 3:tx1 - 3] = ((ic > esik) & (hsv[ty0 + 4:ty1 - 4, tx0 + 3:tx1 - 3, 1] < 70)).astype(np.uint8)
     cizgi = cv2.morphologyEx(cizgi, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
 
     sayi, etiket, istat, merkez = cv2.connectedComponentsWithStats(cizgi)
+    kalinlik = cv2.distanceTransform(cizgi, cv2.DIST_L2, 3)
     parcalar = []
     for i in range(1, sayi):
         px, py, pw, ph, alan = istat[i]
-        if 6 <= max(pw, ph) <= 45 and min(pw, ph) <= 35 and alan >= 10 and alan / (pw * ph) < 0.8:
-            parcalar.append(i)
+        # düz "1" neredeyse dolu bir dikdörtgendir; ince parçalarda doluluk sınırı yok
+        if not (6 <= max(pw, ph) <= 45 and min(pw, ph) <= 35 and alan >= 10 and (alan / (pw * ph) < 0.8 or min(pw, ph) <= 8)):
+            continue
+        # takozun parlayan kenarı kalemden çok daha ince uzun bir çizgidir, "1" sanılmasın
+        if max(pw, ph) >= 12 and 2 * kalinlik[py:py + ph, px:px + pw][etiket[py:py + ph, px:px + pw] == i].max() < 4.5:
+            continue
+        parcalar.append(i)
     if len(parcalar) < 2:
-        return []
+        return None, yer
 
     en_iyi_sutun = max(
         (merkez[i][0] for i in parcalar),
@@ -415,11 +472,18 @@ def takoz_karakterleri(img, kutu, yan):
     ust = min(istat[i][1] for i in grup)
     alt = max(istat[i][1] + istat[i][3] for i in grup)
     if len(grup) < 2 or not 35 <= alt - ust <= 150:
-        return []
+        return None, yer
     maske = np.isin(etiket, grup).astype(np.uint8) * 255
     maske = cv2.morphologyEx(maske, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    return maske, yer
 
-    dondurulmus = cv2.rotate(maske, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+def takoz_karakterleri(img, kutu, yan, yon=cv2.ROTATE_90_COUNTERCLOCKWISE, maske=None):
+    if maske is None:
+        maske, _ = takoz_yazisi(img, kutu, yan)
+    if maske is None:
+        return []
+    dondurulmus = cv2.rotate(maske, yon)
     sayi, etiket, istat, _ = cv2.connectedComponentsWithStats(dondurulmus)
     karakterler = []
     for i in range(1, sayi):
@@ -436,9 +500,9 @@ def derinlik_rakamlari(derinlik):
     return [int(r) for r in f"{derinlik:.2f}".replace(".", "")]
 
 
-def takoz_hizala(karakterler, derinlik):
+def takoz_hizala(karakterler, derinlik, fazla=2):
     hedef = derinlik_rakamlari(derinlik)
-    if not len(hedef) <= len(karakterler) <= len(hedef) + 2:
+    if not len(hedef) <= len(karakterler) <= len(hedef) + fazla:
         return None
     en_iyi = None
     for bas in range(len(karakterler) - len(hedef) + 1):
@@ -448,7 +512,7 @@ def takoz_hizala(karakterler, derinlik):
         puan += sum(math.log(max(k["olasilik"][COP_SINIFI], 0.15)) for k in disarida)
         if en_iyi is None or puan > en_iyi[0]:
             en_iyi = (puan, [(k["maske"], r) for k, r in zip(secilen, hedef)])
-    return en_iyi[1]
+    return en_iyi
 
 
 def takoz_ornekleri_kaydet(numune, baslangic, bitis, klasor, fotograflar):
@@ -462,8 +526,155 @@ def takoz_ornekleri_kaydet(numune, baslangic, bitis, klasor, fotograflar):
         return 0
     adet = 0
     for yan, derinlik in (("sol", baslangic), ("sag", bitis)):
-        adet += ornekleri_yaz(takoz_hizala(takoz_karakterleri(img, kutu, yan), derinlik), klasor)
+        maske, _ = takoz_yazisi(img, kutu, yan) if derinlik is not None else (None, None)
+        if maske is None:
+            continue
+        # takoz yazısı iki yönde de yazılabiliyor; bilinen derinliğe en iyi uyan yön seçilir. Yalnızca
+        # karakter sayısı rakam sayısına tam uyanlar kaydedilir ki yanlış bölünmüş parçalar modeli bozmasın.
+        hizalar = []
+        for yon in TAKOZ_YONLERI:
+            karakterler = takoz_karakterleri(img, kutu, yan, yon, maske)
+            hiza = takoz_hizala(karakterler, derinlik, fazla=0)
+            if hiza is not None:
+                hizalar.append((hiza, karakterler))
+        if not hizalar:
+            continue
+        (_, eslesme), karakterler = max(hizalar, key=lambda h: h[0][0])
+        # model rakamların en az yarısını zaten doğru tanımıyorsa bölütleme büyük olasılıkla kaymıştır
+        tutan = sum(k["rakam"] == r for k, (_, r) in zip(karakterler, eslesme))
+        if 2 * tutan >= len(eslesme):
+            adet += ornekleri_yaz(eslesme, klasor)
     return adet
+
+
+def derinlik_adaylari():
+    """Takozda yazabilecek derinlikler (5 cm adımlarla) ve rakam dizileri; 1,50 için "150" ve "0150"."""
+    adaylar = []
+    for santim in range(0, 10000, 5):
+        yazi = f"{santim // 100}{santim % 100:02d}"
+        adaylar.append((santim, yazi))
+        if santim < 1000:
+            adaylar.append((santim, "0" + yazi))
+    return adaylar
+
+
+_derinlik_tablolari = None
+
+
+def derinlik_tablolari():
+    global _derinlik_tablolari
+    if _derinlik_tablolari is None:
+        gruplar = {}
+        for santim, yazi in derinlik_adaylari():
+            gruplar.setdefault(len(yazi), []).append((santim, [int(r) for r in yazi]))
+        _derinlik_tablolari = {uzunluk: (np.array([s for s, _ in g]), np.array([r for _, r in g])) for uzunluk, g in gruplar.items()}
+    return _derinlik_tablolari
+
+
+def karakter_puanlari(olasiliklar):
+    olasilik = np.asarray(olasiliklar, dtype=np.float64)
+    rakam = np.log(olasilik[:, :10] + 1e-4) + np.log(1 - olasilik[:, COP_SINIFI:COP_SINIFI + 1] + 1e-4)
+    cop = np.log(np.maximum(olasilik[:, COP_SINIFI], 0.15))
+    return rakam, cop
+
+
+def yazi_puanlari(olasiliklar, rakamlar):
+    """Rakam dizilerinin (satır başına bir dizi) okunan karakterlere en iyi uyum puanı (log olasılık):
+    her karakter ya bir rakamla eşleşir ya da çöp sayılır; en çok iki fazla karakter olabilir."""
+    rakam, cop = karakter_puanlari(olasiliklar)
+    adet, uzunluk = len(cop), rakamlar.shape[1]
+    puan = np.full(len(rakamlar), -np.inf)
+    if 0 <= adet - uzunluk <= 2:
+        for bas in range(adet - uzunluk + 1):
+            puan = np.maximum(puan, rakam[np.arange(bas, bas + uzunluk), rakamlar].sum(axis=1) + cop.sum() - cop[bas:bas + uzunluk].sum())
+    return puan
+
+
+def takoz_oku(img, kutu, yan):
+    """Takozdaki yazının karakter olasılıklarını (iki okuma yönü için) ve takozun yerini döndürür."""
+    maske, yer = takoz_yazisi(img, kutu, yan)
+    if maske is None:
+        return None, yer
+    yonler = []
+    for yon in TAKOZ_YONLERI:
+        karakterler = takoz_karakterleri(img, kutu, yan, yon, maske)
+        if len(karakterler) >= 2:
+            yonler.append([[round(float(p), 4) for p in k["olasilik"]] for k in karakterler])
+    if not yonler:
+        return None, yer
+    okuma = {"yonler": yonler, "en_iyi": 0.0}
+    okuma["en_iyi"] = float(takoz_puan_dizisi(okuma).max())
+    if not math.isfinite(okuma["en_iyi"]):
+        # hiçbir derinliğe uymayacak kadar çok parça var
+        return None, yer
+    return okuma, yer
+
+
+def takoz_puan_dizisi(okuma):
+    """0,00-99,95 m arasındaki her derinlik (5 cm adımlarla) için takoz okumasının puanı."""
+    dizi = np.full(2000, -np.inf)
+    for yon in okuma["yonler"]:
+        for santimler, rakamlar in derinlik_tablolari().values():
+            np.maximum.at(dizi, santimler // 5, yazi_puanlari(yon, rakamlar))
+    return dizi - okuma["en_iyi"]
+
+
+def takozlardan_aralik(numune):
+    """İki takoz da güçlü ve birbiriyle tutarlı okunduysa (fark tam 0,45 ya da 0,50) aralığı döndürür."""
+    takoz = numune.get("takoz") or {}
+    if not takoz.get("sol") or not takoz.get("sag"):
+        return None
+    sol, sag = takoz_puan_dizisi(takoz["sol"]), takoz_puan_dizisi(takoz["sag"])
+    adaylar = []
+    for uzunluk in (0.45, 0.5):
+        adim = round(uzunluk / 0.05)
+        puan = sol[:-adim] + sag[adim:]
+        for i in np.argsort(-puan)[:2]:
+            adaylar.append((float(puan[i]), round(i * 0.05, 2), uzunluk))
+    adaylar.sort(reverse=True)
+    (en_iyi, baslangic, uzunluk), (ikinci, _, _) = adaylar[0], adaylar[1]
+    if en_iyi < -1.5 or en_iyi - ikinci < 3:
+        return None
+    return baslangic, uzunluk
+
+
+def takoz_kaniti(okuma, derinlik):
+    """Takoz okumasının verilen derinliği ne kadar desteklediği: 0 en iyi uyum, eksi değerler daha zayıf."""
+    if not okuma:
+        return 0.0
+    santim = int(round(derinlik * 100))
+    if santim < 0:
+        return -KANIT_TABANI
+    yazi = f"{santim // 100}{santim % 100:02d}"
+    yazilar = [yazi] + (["0" + yazi] if santim < 1000 else [])
+    puan = max(float(yazi_puanlari(y, np.array([[int(r) for r in y_]]))[0]) for y in okuma["yonler"] for y_ in yazilar)
+    # karakter sayısı hiç uymayan (ör. bir rakamı ayrılamamış) okuma da tek başına bir derinliği dışlamasın
+    return max(-KANIT_TABANI, puan - okuma["en_iyi"])
+
+
+KANIT_TABANI = 12.0
+ATLAMA_CEZASI = 2.0
+GERI_CEZASI = 6.0
+
+
+def takoza_gore_sec(numune, tahmin, uzunluk, bitisten=False):
+    """1,5 m düzenindeki aday başlangıçlar arasından (tahmin, tahmin±1,5, ...) takozlara en iyi uyanı seçer.
+    İleri atlamak arada okunamamış bir numune, geri gitmek ise önceki satırlardan birinin yanlış
+    algılandığı anlamına gelir; ikisi de cezalandırılır, geri gitmek daha çok."""
+    takoz = numune.get("takoz") or {}
+    if not takoz.get("sol") and not takoz.get("sag"):
+        return tahmin
+    en_iyi = None
+    for adim in range(-2, 15):
+        aday = round(tahmin + 1.5 * adim, 2)
+        baslangic = round(aday - uzunluk, 2) if bitisten else aday
+        if baslangic < 0:
+            continue
+        ceza = ATLAMA_CEZASI * adim if adim >= 0 else -GERI_CEZASI * adim
+        puan = takoz_kaniti(takoz.get("sol"), baslangic) + takoz_kaniti(takoz.get("sag"), baslangic + uzunluk) - ceza
+        if en_iyi is None or puan > en_iyi[0]:
+            en_iyi = (puan, aday)
+    return en_iyi[1]
 
 
 def derinlik_satirini_oku(karakterler, uzunluk):
@@ -590,6 +801,19 @@ def numuneleri_oku(yollar, ilerleme=None):
             if any(yanyana(aday, spt) for spt in sptler):
                 aday["tip"] = "UD"
                 okunanlar.append(aday)
+        # yazısı okunamayan borular, iki yanındaki takozlar açıkça okunuyorsa kurtarılır
+        for aday in hepsi:
+            if aday["tip"] is not None or any(kesisim_orani(aday["kutu"], o["kutu"]) > 0.25 for o in okunanlar):
+                continue
+            takozlari_oku(img, aday)
+            aralik = takozlardan_aralik(aday)
+            if aralik is None:
+                continue
+            baslangic, uzunluk = aralik
+            aday["tip"] = "UD" if uzunluk == 0.5 else "SPT"
+            aday["derinlik"] = (baslangic, round(baslangic + uzunluk, 2))
+            aday["takozdan"] = True
+            okunanlar.append(aday)
         okunanlar = sira_numarasi(okunanlar)
         for sira_no, okunan in enumerate(okunanlar):
             if okunan["tip"] == "UD" and "derinlik" not in okunan:
@@ -598,8 +822,25 @@ def numuneleri_oku(yollar, ilerleme=None):
                     okunan["tip"] = "SPT"
             okunan["fotograf"] = os.path.basename(yol)
             okunan["yol"] = yol
+            if "takoz" not in okunan:
+                takozlari_oku(img, okunan)
             numuneler.append(okunan)
     return numuneler
+
+
+def takozlari_oku(img, numune):
+    """Borunun iki yanındaki takozları okur; görüntüde gösterilecek alanı boru ile iki takozu kapsayacak şekilde belirler."""
+    numune["takoz"] = {}
+    alan = numune["kutu"]
+    x, y, w, h = numune["kutu"]
+    for yan in ("sol", "sag"):
+        okuma, yer = takoz_oku(img, numune["kutu"], yan)
+        numune["takoz"][yan] = okuma
+        if yer is None:
+            # takoz yoksa borunun o yanından biraz pay bırakılır
+            yer = (max(0, int(x - 0.3 * w)), y, 1, h) if yan == "sol" else (int(x + 1.3 * w), y, 1, h)
+        alan = birlesim(alan, yer)
+    numune["alan"] = alan
 
 
 def tekrarlari_ayikla(okunanlar, goruntu_boyu):
@@ -630,12 +871,24 @@ def yanyana(sol, sag):
     return abs((sy + sh / 2) - (gy + gh / 2)) < 60 and 0 <= gx - (sx + sw) < 1.5 * sw
 
 
+def takoz_sira_uyarisi(baslangic, secilen, tahmin, derinlik):
+    """Takozlara göre seçilen derinlik sıradaki tahminden farklıysa kullanıcıya nedenini söyler."""
+    if baslangic < derinlik - 0.001:
+        return [f"Takozlarda {baslangic:.2f} okundu; önceki manevrayla çakışıyor, üstteki satırlardan biri yanlış algılanmış olabilir"]
+    if secilen > tahmin + 0.001:
+        return [f"Takozlarda {baslangic:.2f} okundu; önünde okunamayan numune olabilir"]
+    return []
+
+
 def manevralari_olustur(numuneler, baslangic_derinligi=0.0):
     satirlar = []
     derinlik = baslangic_derinligi
     onceki_tip = None
     for numune in numuneler:
         uyarilar = []
+        kaynak = "Takozlarda" if numune.get("takozdan") else "Etikette"
+        if numune.get("takozdan") and not numune.get("elle"):
+            uyarilar.append("Boru yazısı okunamadı; aralık takozlardan bulundu")
         if numune.get("elle") and "derinlik" in numune:
             baslangic, bitis = numune["derinlik"]
             if baslangic < derinlik - 0.001:
@@ -645,27 +898,30 @@ def manevralari_olustur(numuneler, baslangic_derinligi=0.0):
             if "derinlik" in numune:
                 baslangic, bitis = numune["derinlik"]
                 if abs(bitis - tahmin_bitis) > 0.001:
-                    uyarilar.append(f"Etikette {bitis:.2f} okundu, 1,5 m düzenine göre {tahmin_bitis:.2f} olmalıydı")
+                    uyarilar.append(f"{kaynak} {bitis:.2f} okundu, 1,5 m düzenine göre {tahmin_bitis:.2f} olmalıydı")
                 if baslangic < derinlik - 0.001:
                     uyarilar.append("Önceki manevrayla çakışıyor")
                     baslangic = derinlik
                     bitis = round(baslangic + 0.5, 2)
             else:
-                bitis = tahmin_bitis
+                bitis = takoza_gore_sec(numune, tahmin_bitis, 0.5, bitisten=True)
                 baslangic = round(bitis - 0.5, 2)
-                uyarilar.append("Darbe sayısı bulunamadı, UD varsayıldı; derinlik 1,5 m düzeninden çıkarıldı")
+                uyarilar.append("Darbe sayısı bulunamadı, UD varsayıldı")
+                uyarilar.extend(takoz_sira_uyarisi(baslangic, bitis, tahmin_bitis, derinlik))
         else:
             tahmin = sonraki_kat(derinlik, dahil=(onceki_tip == "UD"))
+            uzunluk = spt_uzunlugu(numune.get("darbeler"))
             okunan = numune.get("derinlik")
-            if okunan is not None and derinlik - 0.001 <= okunan[0] <= derinlik + 6:
+            if okunan is not None and derinlik - 0.001 <= okunan[0] <= derinlik + (30 if numune.get("takozdan") else 6):
                 baslangic = okunan[0]
                 if abs(baslangic - tahmin) > 0.001:
-                    uyarilar.append(f"Etikette {baslangic:.2f} okundu, 1,5 m düzenine göre {tahmin:.2f} beklenirdi")
+                    uyarilar.append(f"{kaynak} {baslangic:.2f} okundu, 1,5 m düzenine göre {tahmin:.2f} beklenirdi")
             else:
-                if okunan is not None:
-                    uyarilar.append(f"Etikette {okunan[0]:.2f} okundu ama sıraya uymuyor; 1,5 m düzeni kullanıldı")
-                baslangic = tahmin
-            bitis = round(baslangic + spt_uzunlugu(numune.get("darbeler")), 2)
+                baslangic = takoza_gore_sec(numune, tahmin, uzunluk)
+                if okunan is not None and abs(okunan[0] - baslangic) > 0.001:
+                    uyarilar.append(f"{kaynak} {okunan[0]:.2f} okundu ama sıraya uymuyor")
+                uyarilar.extend(takoz_sira_uyarisi(baslangic, baslangic, tahmin, derinlik))
+            bitis = round(baslangic + uzunluk, 2)
         if numune["tip"] != "UD":
             if not any(numune.get("darbeler") or []):
                 uyarilar.append("Darbe sayıları okunamadı")

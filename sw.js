@@ -4,7 +4,7 @@ const MOTOR_ONBELLEGI = "sondajlog-motor-v1";
 const UYGULAMA = [
   "./", "index.html", "stil.css", "uygulama.js", "isci.js", "rakam_agi.js",
   "rakam_cekirdek.wasm", "rakam_agirliklari.bin", "gorsel_okuma.py", "telefon.py",
-  "manifest.webmanifest", "simge-180.png", "simge-192.png", "simge-512.png",
+  "manifest.webmanifest", "simge-180.png", "simge-192.png", "simge-512.png", "logo-baslik.png",
 ];
 
 self.addEventListener("install", (olay) => {

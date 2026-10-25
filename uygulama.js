@@ -1,8 +1,9 @@
 "use strict";
-// SondajLog telefon sürümü. Hesap kuralları masaüstündeki program.py ile aynıdır;
-// kayıt dosyası da aynı biçimdedir, bilgisayardaki SondajLog doğrudan açabilir.
+// Logvera telefon sürümü. Hesap kuralları masaüstündeki program.py ile aynıdır;
+// kayıt dosyası da aynı biçimdedir, bilgisayardaki Logvera doğrudan açabilir.
 
 const $ = (kimlik) => document.getElementById(kimlik);
+// Depo anahtarları eski adla kalır; değişirse telefondaki kayıtlı kuyular kaybolur.
 const DEPO_KUYULAR = "sondajlog.kuyular";
 const DEPO_AKTIF = "sondajlog.aktif";
 const FOTO_EN_BUYUK = 2048;
@@ -345,7 +346,7 @@ function kuyuBilgileriniCiz() {
   for (const anahtar of ["proje", "kuyu", "tarih"]) $("kuyu-" + anahtar).value = veri.kuyu_bilgileri[anahtar] || "";
   $("kuyu-karti").open = !veri.manevralar.length;
   $("ust-kuyu").textContent = veri.kuyu_bilgileri.kuyu || "Yeni kuyu";
-  document.title = veri.kuyu_bilgileri.kuyu ? `SondajLog — ${veri.kuyu_bilgileri.kuyu}` : "SondajLog";
+  document.title = veri.kuyu_bilgileri.kuyu ? `Logvera — ${veri.kuyu_bilgileri.kuyu}` : "Logvera";
 }
 
 function ozetiCiz() {
@@ -589,7 +590,8 @@ async function motoruHazirla() {
 const fotoKuyrugu = [];
 
 async function fotografHazirla(dosya) {
-  const bitmap = await createImageBitmap(dosya);
+  // Renk profili dönüşümü kapatılır ki pikseller bilgisayardaki OpenCV okumasına olabildiğince yakın olsun
+  const bitmap = await createImageBitmap(dosya, { colorSpaceConversion: "none" }).catch(() => createImageBitmap(dosya));
   const olcek = Math.min(1, FOTO_EN_BUYUK / Math.max(bitmap.width, bitmap.height));
   const tuval = document.createElement("canvas");
   tuval.width = Math.round(bitmap.width * olcek);
@@ -686,7 +688,7 @@ async function fotograflariOku() {
 
 // ---------- Önizleme ----------
 const onizleme = { fotograflar: [], numuneler: [], satirlar: [], secili: null, sira: 0 };
-const gorunum = { foto: null, kutu: null, merkez: [0, 0], olcek: 1, otomatik: true };
+const gorunum = { foto: null, fotoNo: null, kutu: null, merkez: [0, 0], olcek: 1, otomatik: true };
 
 function sptUzunlugu(darbeler) {
   for (let sira = 0; sira < (darbeler || []).length; sira++) {
@@ -729,13 +731,30 @@ async function onizlemeyiYenile(secilecekNumune) {
       sinif: s.uyari ? "uyari" : s.tip === "K" ? "karot" : s.tip.toLowerCase(),
       not: s.uyari,
     })), "Okunan numune yok");
-  elemanlar.forEach((eleman, i) => eleman.addEventListener("click", () => satirSec(i)));
+  elemanlar.forEach((eleman, i) => dokununca(eleman, () => satiraDokunuldu(i)));
   if (secilecekNumune !== undefined) {
     const indeks = satirlar.findIndex((s) => s.numune === secilecekNumune);
     satirSec(indeks >= 0 ? indeks : null);
   } else if (onizleme.secili !== null) {
     satirSec(onizleme.secili < satirlar.length ? onizleme.secili : null, false);
   }
+}
+
+// Açık klavye kapanırken sayfa kayar ve "click" başka bir satıra düşebilir; bu yüzden satır,
+// parmağın değdiği anda belirlenir ve parmak kaydırmadan kalkarsa seçilir.
+function dokununca(eleman, is) {
+  let basilan = null;
+  eleman.addEventListener("pointerdown", (olay) => { basilan = { x: olay.clientX, y: olay.clientY }; });
+  eleman.addEventListener("pointercancel", () => { basilan = null; });
+  eleman.addEventListener("pointerup", (olay) => {
+    if (basilan && Math.hypot(olay.clientX - basilan.x, olay.clientY - basilan.y) < 10) is();
+    basilan = null;
+  });
+}
+
+function satiraDokunuldu(indeks) {
+  document.activeElement?.blur?.();
+  satirSec(indeks);
 }
 
 function satirSec(indeks, gorseliGuncelle = true) {
@@ -756,8 +775,9 @@ function satirSec(indeks, gorseliGuncelle = true) {
   for (const k of ["duzen-guncelle", "duzen-sil"]) $(k).disabled = satir.numune === null;
   if (gorseliGuncelle) {
     const numune = satir.numune === null ? null : onizleme.numuneler[satir.numune];
-    gorunum.foto = numune && numune.foto !== undefined ? onizleme.fotograflar[numune.foto] : null;
-    gorunum.kutu = numune ? numune.kutu || null : null;
+    gorunum.fotoNo = numune && numune.foto !== undefined ? numune.foto : null;
+    gorunum.foto = gorunum.fotoNo === null ? null : onizleme.fotograflar[gorunum.fotoNo];
+    gorunum.kutu = numune ? numune.alan || numune.kutu || null : null;
     $("goruntu-adi").textContent = numune ? numune.fotograf || "" : "Karot manevrası";
     gorunum.otomatik = true;
     boruyaOdaklan();
@@ -905,6 +925,14 @@ function goruntuyuCiz() {
   const x0 = mx - genislik / (2 * olcek), y0 = my - yukseklik / (2 * olcek);
   b.imageSmoothingQuality = "high";
   b.drawImage(foto.tuval, -x0 * olcek, -y0 * olcek, foto.tuval.width * olcek, foto.tuval.height * olcek);
+  // aynı fotoğraftaki diğer borular ince beyaz çerçeveyle; dokununca satırları seçilir
+  b.strokeStyle = "rgba(255, 255, 255, .8)";
+  b.lineWidth = 1;
+  for (const numune of onizleme.numuneler) {
+    const alan = numune.alan || numune.kutu;
+    if (numune.foto !== gorunum.fotoNo || !alan || alan === gorunum.kutu) continue;
+    b.strokeRect((alan[0] - x0) * olcek, (alan[1] - y0) * olcek, alan[2] * olcek, alan[3] * olcek);
+  }
   if (gorunum.kutu) {
     const [kx, ky, kw, kh] = gorunum.kutu;
     b.strokeStyle = "#FFDC00";
@@ -913,14 +941,34 @@ function goruntuyuCiz() {
   }
 }
 
+// Boru iki takozuyla birlikte, yanlarında önceki ve sonraki manevralar da görünecek kadar yakınlaştırılır.
+function odakOlcegi() {
+  const t = tuval(), [, , kw, kh] = gorunum.kutu;
+  return Math.min(t.clientWidth / (kw * 1.8), t.clientHeight / (kh * 1.5));
+}
+
 function boruyaOdaklan() {
-  const t = tuval();
   if (!gorunum.foto) return goruntuyuCiz();
   if (!gorunum.kutu) return tumFotograf();
   const [kx, ky, kw, kh] = gorunum.kutu;
-  gorunum.olcek = Math.min(t.clientWidth / (kw * 1.6), t.clientHeight / (kh * 3));
+  gorunum.olcek = odakOlcegi();
   gorunum.merkez = [kx + kw / 2, ky + kh / 2];
   goruntuyuCiz();
+}
+
+function fotograftaSec(ekranX, ekranY) {
+  const t = tuval(), [mx, my] = gorunum.merkez;
+  const x = mx + (ekranX - t.clientWidth / 2) / gorunum.olcek;
+  const y = my + (ekranY - t.clientHeight / 2) / gorunum.olcek;
+  const indeks = onizleme.satirlar.findIndex((satir) => {
+    const numune = satir.numune === null ? null : onizleme.numuneler[satir.numune];
+    const alan = numune && (numune.alan || numune.kutu);
+    return alan && numune.foto === gorunum.fotoNo && alan !== gorunum.kutu &&
+      x >= alan[0] && x <= alan[0] + alan[2] && y >= alan[1] && y <= alan[1] + alan[3];
+  });
+  if (indeks < 0) return false;
+  satiraDokunuldu(indeks);
+  return true;
 }
 
 function tumFotograf() {
@@ -947,16 +995,19 @@ function dokunmalariBagla() {
     const kutu = t.getBoundingClientRect();
     return { x: olay.clientX - kutu.left, y: olay.clientY - kutu.top };
   };
+  let basilan = null;
   t.addEventListener("pointerdown", (olay) => {
     t.setPointerCapture(olay.pointerId);
     parmaklar.set(olay.pointerId, konum(olay));
     onceki = ozet();
     gorunum.otomatik = false;
+    basilan = parmaklar.size === 1 ? konum(olay) : null;
     if (parmaklar.size === 1) {
       const simdi = Date.now();
       if (simdi - sonDokunma < 300) {
-        const odakta = gorunum.kutu && Math.abs(gorunum.olcek - Math.min(t.clientWidth / (gorunum.kutu[2] * 1.6), t.clientHeight / (gorunum.kutu[3] * 3))) < 1e-6;
+        const odakta = gorunum.kutu && Math.abs(gorunum.olcek - odakOlcegi()) < 1e-6;
         odakta ? tumFotograf() : boruyaOdaklan();
+        basilan = null;
       }
       sonDokunma = simdi;
     }
@@ -984,8 +1035,15 @@ function dokunmalariBagla() {
     parmaklar.delete(olay.pointerId);
     onceki = parmaklar.size ? ozet() : null;
   };
-  t.addEventListener("pointerup", birak);
-  t.addEventListener("pointercancel", birak);
+  t.addEventListener("pointerup", (olay) => {
+    const nokta = konum(olay);
+    if (basilan && parmaklar.size === 1 && Math.hypot(nokta.x - basilan.x, nokta.y - basilan.y) < 8 && fotograftaSec(nokta.x, nokta.y)) {
+      sonDokunma = 0;  // seçimden hemen sonraki dokunma çift dokunma sayılmasın
+    }
+    basilan = null;
+    birak(olay);
+  });
+  t.addEventListener("pointercancel", (olay) => { basilan = null; birak(olay); });
   t.addEventListener("wheel", (olay) => {
     if (!gorunum.foto) return;
     olay.preventDefault();
@@ -1020,7 +1078,7 @@ function baglantilariKur() {
       kaydet();
       if (anahtar === "kuyu") {
         $("ust-kuyu").textContent = olay.target.value || "Yeni kuyu";
-        document.title = olay.target.value ? `SondajLog — ${olay.target.value}` : "SondajLog";
+        document.title = olay.target.value ? `Logvera — ${olay.target.value}` : "Logvera";
       }
     });
   }

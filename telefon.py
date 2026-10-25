@@ -45,8 +45,8 @@ def numuneleri_oku(adlar):
         js.postMessage(json.dumps({"tur": "ilerleme", "sira": sira, "toplam": toplam, "ad": ad}))
 
     numuneler = gorsel_okuma.numuneleri_oku(list(adlar), ilerleme)
-    alanlar = ("tip", "darbeler", "guven", "kutu", "derinlik", "kesin", "fotograf", "yol")
-    return json.dumps([{a: n[a] for a in alanlar if a in n} for n in numuneler], default=_sade)
+    alanlar = ("tip", "darbeler", "guven", "kutu", "alan", "takoz", "takozdan", "derinlik", "kesin", "fotograf", "yol")
+    return json.dumps([{a: n[a] for a in alanlar if a in n} for n in numuneler], default=_sade, allow_nan=False)
 
 
 def manevralar(numuneler_json, baslangic):

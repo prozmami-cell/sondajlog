@@ -38,7 +38,8 @@ button, input, select { font: inherit; color: inherit; }
   background: var(--kart); border-bottom: 1px solid var(--cizgi);
 }
 .ust-baslik { flex: 1; min-width: 0; text-align: center; }
-.marka { font-weight: 700; color: var(--vurgu); font-size: 17px; }
+.marka { display: inline-flex; align-items: center; }
+.marka img { height: 28px; width: auto; display: block; }
 .alt-yazi { font-size: 13px; color: var(--soluk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ikon {
   width: 44px; height: 44px; border: 0; border-radius: 10px;
