@@ -1,0 +1,15 @@
+{
+  "name": "SondajLog",
+  "short_name": "SondajLog",
+  "description": "Sondaj manevra, SPT ve TCR kayıtları; sandık fotoğrafından okuma",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F5F8",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "simge-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "simge-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

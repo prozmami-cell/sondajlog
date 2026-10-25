@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SondajLog</title>
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SondajLog">
+<link rel="apple-touch-icon" href="simge-180.png">
+<link rel="icon" href="simge-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="stil.css">
+</head>
+<body>
+
+<header class="ust">
+  <button class="ikon" id="dugme-kuyular" aria-label="Kuyular"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  <div class="ust-baslik">
+    <div class="marka">SondajLog</div>
+    <div class="alt-yazi" id="ust-kuyu">Yeni kuyu</div>
+  </div>
+  <button class="ikon" id="dugme-paylas" aria-label="Dosyayı paylaş"><svg viewBox="0 0 24 24"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5M8 11H6v10h12V11h-2"/></svg></button>
+</header>
+
+<main>
+  <!-- MANEVRA -->
+  <section class="sekme" id="sekme-manevra">
+    <details class="kart" id="kuyu-karti">
+      <summary>Kuyu bilgileri</summary>
+      <label>Proje<input id="kuyu-proje" autocomplete="off"></label>
+      <div class="iki">
+        <label>Kuyu<input id="kuyu-kuyu" autocomplete="off"></label>
+        <label>Tarih<input id="kuyu-tarih" autocomplete="off"></label>
+      </div>
+    </details>
+
+    <div class="kart">
+      <div class="kart-baslik">Manevra girişi</div>
+      <div class="iki">
+        <label>Başlangıç (m)<input id="giris-baslangic" inputmode="decimal" autocomplete="off"></label>
+        <label>Bitiş (m)<input id="giris-bitis" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-ekle">Manevrayı Ekle</button>
+        <button id="dugme-son-sil">Son Manevrayı Sil</button>
+      </div>
+    </div>
+
+    <div class="liste-baslik">
+      <span>Manevralar</span>
+      <button class="kucuk" data-kopyala="manevra">Kopyala</button>
+    </div>
+    <div class="tablo" id="tablo-manevra"></div>
+  </section>
+
+  <!-- SPT -->
+  <section class="sekme" id="sekme-spt" hidden>
+    <div class="kart">
+      <div class="kart-baslik">SPT değerleri <span class="ipucu">refü: 50/5 için 50,5 yazabilirsiniz</span></div>
+      <label>SPT<select id="spt-secim"></select></label>
+      <div class="uc">
+        <label>0-15 cm<input id="darbe-1" inputmode="decimal" autocomplete="off"></label>
+        <label>15-30 cm<input id="darbe-2" inputmode="decimal" autocomplete="off"></label>
+        <label>30-45 cm<input id="darbe-3" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-spt-kaydet">Değerleri Kaydet</button>
+        <button id="dugme-spt-sil">Değerleri Sil</button>
+      </div>
+    </div>
+    <div class="liste-baslik">
+      <span>SPT listesi</span>
+      <span>
+        <button class="kucuk" data-kopyala="spt-aralik">Aralık</button>
+        <button class="kucuk" data-kopyala="spt-darbe">Darbe+N</button>
+        <button class="kucuk" data-kopyala="spt-n">N</button>
+      </span>
+    </div>
+    <div class="tablo" id="tablo-spt"></div>
+  </section>
+
+  <!-- TCR -->
+  <section class="sekme" id="sekme-tcr" hidden>
+    <div class="kart">
+      <div class="kart-baslik">TCR / SCR / RQD</div>
+      <label>Manevra<select id="tcr-secim"></select></label>
+      <div class="uc">
+        <label>TCR (cm)<input id="tcr-tcr" inputmode="decimal" autocomplete="off"></label>
+        <label>SCR (cm)<input id="tcr-scr" inputmode="decimal" autocomplete="off"></label>
+        <label>RQD (cm)<input id="tcr-rqd" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-tcr-hesapla">Hesapla ve Kaydet</button>
+        <button id="dugme-tcr-sil">Son Satırı Sil</button>
+      </div>
+    </div>
+    <div class="liste-baslik">
+      <span>Sonuçlar</span>
+      <span>
+        <button class="kucuk" data-kopyala="tcr">TCR%</button>
+        <button class="kucuk" data-kopyala="scr">SCR%</button>
+        <button class="kucuk" data-kopyala="rqd">RQD%</button>
+      </span>
+    </div>
+    <div class="tablo" id="tablo-tcr"></div>
+  </section>
+
+  <!-- FOTOĞRAF -->
+  <section class="sekme" id="sekme-foto" hidden>
+    <div class="kart">
+      <div class="kart-baslik">Sandık fotoğrafları</div>
+      <p class="aciklama">Sandıkları sırayla (1, 2, 3…) çekin ya da galeriden seçin. Sıra yanlışsa oklarla düzeltin.</p>
+      <div class="iki">
+        <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" id="foto-cek" hidden></label>
+        <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple id="foto-sec" hidden></label>
+      </div>
+      <div id="foto-kuyrugu"></div>
+      <button class="ana genis" id="dugme-oku" disabled>Fotoğrafları Oku</button>
+      <div class="motor-durumu" id="motor-durumu"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="durum" id="durum">
+  <span id="durum-mesaj"></span>
+  <span id="durum-ozet"></span>
+</footer>
+
+<nav class="sekmeler">
+  <button data-sekme="manevra" class="secili"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 9.3h14M5 14.6h14M5 20h14"/><path d="M12 4v16" stroke-dasharray="2 2"/></svg>Manevra</button>
+  <button data-sekme="spt"><svg viewBox="0 0 24 24"><path d="M7 3h10v5H7zM12 8v13M9 21h6"/></svg>SPT</button>
+  <button data-sekme="tcr"><svg viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>TCR</button>
+  <button data-sekme="foto"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotoğraf</button>
+</nav>
+
+<!-- KUYULAR -->
+<div class="katman" id="katman-kuyular" hidden>
+  <div class="katman-ust">
+    <button class="metin" data-kapat>Kapat</button>
+    <div class="katman-baslik">Kuyular</div>
+    <button class="metin" id="dugme-yeni-kuyu">Yeni</button>
+  </div>
+  <div class="katman-govde">
+    <div id="kuyu-listesi"></div>
+    <label class="dosya-dugmesi genis">Dosyadan Aç (.json)<input type="file" accept=".json,application/json" id="dosya-ac" hidden></label>
+    <p class="aciklama">Kayıtlar bu telefonda otomatik saklanır. Bilgisayara aktarmak için üstteki paylaş düğmesiyle dosyayı gönderin ve SondajLog'da "Aç" ile açın.</p>
+  </div>
+</div>
+
+<!-- ÖNİZLEME -->
+<div class="katman" id="katman-onizleme" hidden>
+  <div class="katman-ust">
+    <button class="metin" id="onizleme-iptal">İptal</button>
+    <div class="katman-baslik">Okunan Değerler</div>
+    <button class="metin kalin" id="onizleme-aktar">Aktar</button>
+  </div>
+  <div class="goruntuleyici">
+    <canvas id="goruntu"></canvas>
+    <div class="goruntu-araclari">
+      <span id="goruntu-adi"></span>
+      <button class="kucuk koyu" id="dugme-odak">Boru</button>
+      <button class="kucuk koyu" id="dugme-tum">Tümü</button>
+    </div>
+  </div>
+  <div class="onizleme-ayar">
+    <label>Başlangıç (m)<input id="onizleme-baslangic" inputmode="decimal"></label>
+    <label>Kuyu sonu (m)<input id="onizleme-son" inputmode="decimal" placeholder="isteğe bağlı"></label>
+  </div>
+  <div class="tablo onizleme-tablo" id="tablo-onizleme"></div>
+  <div class="duzenleyici" id="duzenleyici" hidden>
+    <div class="duzen-satir">
+      <label>Tip<select id="duzen-tip"><option>SPT</option><option>UD</option></select></label>
+      <label>Başlangıç<input id="duzen-baslangic" inputmode="decimal"></label>
+      <label>Bitiş<input id="duzen-bitis" inputmode="decimal"></label>
+    </div>
+    <div class="duzen-satir" id="duzen-darbeler">
+      <label>0-15<input id="duzen-d1" inputmode="decimal"></label>
+      <label>15-30<input id="duzen-d2" inputmode="decimal"></label>
+      <label>30-45<input id="duzen-d3" inputmode="decimal"></label>
+    </div>
+    <div class="dugmeler">
+      <button class="ana" id="duzen-guncelle">Güncelle</button>
+      <button id="duzen-sil">Sil</button>
+      <button id="duzen-ekle">Altına Ekle</button>
+    </div>
+  </div>
+</div>
+
+<!-- SORU -->
+<div class="soru-zemin" id="soru" hidden>
+  <div class="soru-kutu">
+    <div class="soru-baslik" id="soru-baslik"></div>
+    <div class="soru-metin" id="soru-metin"></div>
+    <div class="soru-dugmeler" id="soru-dugmeler"></div>
+  </div>
+</div>
+
+<script src="uygulama.js"></script>
+</body>
+</html>
