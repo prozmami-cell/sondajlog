@@ -108,6 +108,16 @@
     <div class="tablo" id="tablo-tcr"></div>
   </section>
 
+  <!-- LOG TANIMLAMA -->
+  <section class="sekme" id="sekme-tanim" hidden>
+    <button class="ana genis birim-ekle" id="dugme-birim-ekle"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>YENİ BİRİM EKLE</button>
+    <div class="liste-baslik">
+      <span id="birim-sayisi">Birimler</span>
+      <button class="kucuk" data-kopyala="birim">Kopyala</button>
+    </div>
+    <div id="birim-listesi"></div>
+  </section>
+
   <!-- FOTOĞRAF -->
   <section class="sekme" id="sekme-foto" hidden>
     <div class="kart">
@@ -133,6 +143,7 @@
   <button data-sekme="manevra" class="secili"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 9.3h14M5 14.6h14M5 20h14"/><path d="M12 4v16" stroke-dasharray="2 2"/></svg>Manevra</button>
   <button data-sekme="spt"><svg viewBox="0 0 24 24"><path d="M7 3h10v5H7zM12 8v13M9 21h6"/></svg>SPT</button>
   <button data-sekme="tcr"><svg viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>TCR</button>
+  <button data-sekme="tanim"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>Tanım</button>
   <button data-sekme="foto"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotoğraf</button>
 </nav>
 

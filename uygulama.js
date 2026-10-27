@@ -24,7 +24,7 @@ function pyRound(sayi) {
 
 // ---------- Kayıt ----------
 function bosVeri() {
-  return { kuyu_bilgileri: { proje: "", kuyu: "", tarih: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {} };
+  return { kuyu_bilgileri: { proje: "", kuyu: "", tarih: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [] };
 }
 
 function depoOku(anahtar, varsayilan) {
@@ -67,6 +67,7 @@ function kuyuAc(kimlik) {
   veri.kuyu_bilgileri = Object.assign({ proje: "", kuyu: "", tarih: "" }, veri.kuyu_bilgileri);
   veri.spt_degerleri = veri.spt_degerleri || {};
   veri.tcr_sonuclari = veri.tcr_sonuclari || [];
+  veri.birimler = veri.birimler || [];
   oneriyiHesapla();
   depoYaz(DEPO_AKTIF, aktifKimlik);
   hepsiniCiz();
@@ -364,7 +365,183 @@ function hepsiniCiz() {
   manevraCiz();
   sptCiz();
   tcrCiz();
+  birimleriCiz();
   ozetiCiz();
+}
+
+// ---------- Log tanımlama (birim notları) ----------
+let birimKaydiZamanlayici = null;
+
+function birimiKaydet() {
+  clearTimeout(birimKaydiZamanlayici);
+  birimKaydiZamanlayici = setTimeout(kaydet, 300);
+}
+
+function metrajSuz(yazi) {
+  // yalnızca rakam ve tek bir ondalık ayırıcı
+  const temiz = yazi.replace(/[^0-9.,]/g, "");
+  const ayirici = temiz.search(/[.,]/);
+  return ayirici < 0 ? temiz : temiz.slice(0, ayirici + 1) + temiz.slice(ayirici + 1).replace(/[.,]/g, "");
+}
+
+function boyunuAyarla(alan) {
+  // gizli sekmede ölçü sıfır çıkar; sekme açılınca tanimBoylariniAyarla yeniden ölçer
+  if (!alan.offsetParent) return;
+  alan.style.height = "auto";
+  alan.style.height = alan.scrollHeight + 2 + "px";
+}
+
+function tanimBoylariniAyarla() {
+  for (const alan of document.querySelectorAll("#birim-listesi textarea")) boyunuAyarla(alan);
+}
+
+window.addEventListener("resize", tanimBoylariniAyarla);
+
+// Metraj "20,00-25,00" biçiminde tek yazı olarak saklanır; ekranda iki ayrı rakam kutusudur
+// (iPhone'un rakam klavyesinde çizgi tuşu olmadığı için).
+function metrajParcala(metraj) {
+  const [bas = "", bit = ""] = String(metraj || "").split("-");
+  return [bas.trim(), bit.trim()];
+}
+
+function metrajBirlestir(bas, bit) {
+  return bas || bit ? `${bas}-${bit}` : "";
+}
+
+// Log biçimi: "20,00-25,00m", altında BİRİM ADI, altında tanım
+function metrajYazisi(birim) {
+  return birim[0] ? birim[0] + "m" : "";
+}
+
+function birimBasligi(birim) {
+  return [metrajYazisi(birim), birim[1].trim().toLocaleUpperCase("tr-TR")].filter(Boolean).join("\n");
+}
+
+function birimLogu(birim) {
+  return [birimBasligi(birim), birim[2].trim()].filter(Boolean).join("\n");
+}
+
+const KOPYA_SIMGESI = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+const TAMAM_SIMGESI = '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>';
+
+function kopyaDugmesi(ne, metin) {
+  const dugme = Object.assign(document.createElement("button"), { className: "kopya", innerHTML: KOPYA_SIMGESI });
+  dugme.setAttribute("aria-label", ne + " kopyala");
+  dugme.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(metin());
+      dugme.innerHTML = TAMAM_SIMGESI;
+      dugme.classList.add("tamam");
+      setTimeout(() => { dugme.innerHTML = KOPYA_SIMGESI; dugme.classList.remove("tamam"); }, 1200);
+      durumYaz(ne + " kopyalandı");
+    } catch (hata) {
+      durumYaz("Kopyalanamadı");
+    }
+  };
+  return dugme;
+}
+
+function birimleriCiz() {
+  const kap = $("birim-listesi");
+  kap.textContent = "";
+  $("birim-sayisi").textContent = veri.birimler.length ? `Birimler (${veri.birimler.length})` : "Birimler";
+  if (!veri.birimler.length) {
+    kap.appendChild(Object.assign(document.createElement("div"), {
+      className: "kart bos-liste", textContent: "Henüz birim yok. Üstteki “Yeni Birim Ekle” ile başlayın.",
+    }));
+    return;
+  }
+  veri.birimler.forEach((birim, i) => {
+    const kart = Object.assign(document.createElement("div"), { className: "kart birim" });
+    const baslik = Object.assign(document.createElement("div"), { className: "birim-baslik" });
+    const sil = Object.assign(document.createElement("button"), { className: "kucuk", textContent: "Sil" });
+    sil.onclick = () => birimiSil(i);
+    baslik.append(Object.assign(document.createElement("span"), { textContent: `Birim ${i + 1}` }), sil);
+
+    // her alan: üstte etiket, altta kutu ve sağ kenarında kopyala düğmesi
+    const alan = (etiket, kutu, ne, metin) => {
+      const kap = Object.assign(document.createElement("div"), { className: "birim-alan" });
+      const satir = Object.assign(document.createElement("div"), { className: "kopyali" });
+      satir.append(kutu, kopyaDugmesi(ne, metin));
+      kap.append(Object.assign(document.createElement("div"), { className: "alan-etiketi", textContent: etiket }), satir);
+      return kap;
+    };
+
+    // tanım kutusunun üstünde metraj ve birim adı log biçiminde, yazıldıkça güncellenir
+    const tanimBasligi = Object.assign(document.createElement("div"), { className: "tanim-basligi" });
+    const basligiYenile = () => {
+      tanimBasligi.textContent = birimBasligi(birim);
+      tanimBasligi.hidden = !tanimBasligi.textContent;
+    };
+
+    const [bas, bit] = metrajParcala(birim[0]);
+    const metrajKutusu = (deger, yer) => {
+      const kutu = Object.assign(document.createElement("input"), {
+        className: "metraj", inputMode: "decimal", autocomplete: "off", placeholder: yer, value: deger,
+      });
+      kutu.oninput = () => {
+        const suzulmus = metrajSuz(kutu.value);
+        if (suzulmus !== kutu.value) kutu.value = suzulmus;
+        birim[0] = metrajBirlestir(baslangic.value, bitis.value);
+        basligiYenile();
+        birimiKaydet();
+      };
+      kutu.onblur = () => {
+        const sayi = sayiya(kutu.value);
+        if (sayi === null) return;
+        kutu.value = yaziya(sayi);
+        birim[0] = metrajBirlestir(baslangic.value, bitis.value);
+        basligiYenile();
+        birimiKaydet();
+      };
+      return kutu;
+    };
+    const baslangic = metrajKutusu(bas, "20,00");
+    const bitis = metrajKutusu(bit, "25,00");
+    const metraj = Object.assign(document.createElement("div"), { className: "metraj-cift" });
+    metraj.append(baslangic, Object.assign(document.createElement("span"), { textContent: "–" }), bitis);
+
+    const ad = Object.assign(document.createElement("input"), { autocomplete: "off", placeholder: "ör. Kil", value: birim[1] });
+    ad.oninput = () => { birim[1] = ad.value; basligiYenile(); birimiKaydet(); };
+    const tanim = Object.assign(document.createElement("textarea"), { rows: 3, placeholder: "Birimin tanımı…", value: birim[2] });
+    tanim.oninput = () => { birim[2] = tanim.value; boyunuAyarla(tanim); birimiKaydet(); };
+    const tanimKutusu = Object.assign(document.createElement("div"), { className: "tanim-kutusu" });
+    tanimKutusu.append(tanimBasligi, tanim);
+    tanimKutusu.onclick = (olay) => { if (olay.target !== tanim) tanim.focus(); };
+    basligiYenile();
+
+    kart.append(baslik,
+      alan("Metraj (m)", metraj, "Metraj", () => metrajYazisi(birim)),
+      alan("Birim adı", ad, "Birim adı", () => birim[1].trim()),
+      alan("Tanımlama", tanimKutusu, "Birim logu", () => birimLogu(birim)));
+    kap.appendChild(kart);
+    requestAnimationFrame(() => boyunuAyarla(tanim));
+  });
+}
+
+function birimEkle() {
+  // yeni birim bir öncekinin bittiği metrajdan başlar
+  const onceki = veri.birimler[veri.birimler.length - 1];
+  const bas = onceki ? metrajParcala(onceki[0])[1] : "";
+  veri.birimler.push([metrajBirlestir(bas, ""), "", ""]);
+  kaydet();
+  birimleriCiz();
+  const kartlar = $("birim-listesi").querySelectorAll(".birim");
+  const son = kartlar[kartlar.length - 1];
+  son.scrollIntoView({ block: "center", behavior: "smooth" });
+  son.querySelectorAll("input.metraj")[bas ? 1 : 0].focus();
+}
+
+async function birimiSil(indeks) {
+  const birim = veri.birimler[indeks];
+  if (birim.some((deger) => String(deger).trim())) {
+    const ad = birim[1].trim() || `Birim ${indeks + 1}`;
+    const cevap = await sor("Birimi sil", `"${ad}" silinsin mi?`, [["Sil", true, true], ["Vazgeç", false]]);
+    if (!cevap) return;
+  }
+  veri.birimler.splice(indeks, 1);
+  kaydet();
+  birimleriCiz();
 }
 
 function durumYaz(mesaj) {
@@ -423,6 +600,8 @@ async function kopyala(tur) {
     "tcr": () => veri.tcr_sonuclari.map((s) => String(s[1])),
     "scr": () => veri.tcr_sonuclari.map((s) => String(s[2])),
     "rqd": () => veri.tcr_sonuclari.map((s) => String(s[3])),
+    // birimler log biçiminde, aralarında boş satır
+    "birim": () => [veri.birimler.map(birimLogu).filter(Boolean).join("\n\n")],
   };
   try {
     await navigator.clipboard.writeText(metinler[tur]().join("\n"));
@@ -469,6 +648,7 @@ async function dosyadanAc(dosya) {
     for (const m of okunan.manevralar) manevrayiIsle(sayiya(m[0]), sayiya(m[1]), m.length > 2 ? kayittakiTip(m[2]) : null);
     veri.tcr_sonuclari = (okunan.tcr_sonuclari || []).map((s) => [String(s[0]), Number(s[1]), Number(s[2]), Number(s[3])]);
     for (const [tip, d] of Object.entries(okunan.spt_degerleri || {})) veri.spt_degerleri[tip] = d.map(String);
+    veri.birimler = (okunan.birimler || []).map((b) => [0, 1, 2].map((i) => String(b[i] ?? "")));
     aktifKimlik = yeniKimlik();
     kaydet();
     hepsiniCiz();
@@ -530,6 +710,7 @@ function sekmeSec(ad) {
   for (const bolum of document.querySelectorAll(".sekme")) bolum.hidden = bolum.id !== "sekme-" + ad;
   window.scrollTo(0, 0);
   if (ad === "foto") motoruHazirla();
+  if (ad === "tanim") tanimBoylariniAyarla();
 }
 
 // ---------- Fotoğraf okuma işçisi ----------
@@ -878,9 +1059,10 @@ async function aktar() {
     }
   }
   if (!sonaEkle) {
-    const bilgiler = veri.kuyu_bilgileri;
+    // manevralar yeniden yazılır; kuyu bilgileri ve log tanımları korunur
+    const { kuyu_bilgileri, birimler } = veri;
     veri = bosVeri();
-    veri.kuyu_bilgileri = bilgiler;
+    Object.assign(veri, { kuyu_bilgileri, birimler });
   }
   for (const satir of satirlar) {
     const numuneTipi = manevrayiIsle(satir.baslangic, satir.bitis, satir.tip);
@@ -1093,6 +1275,7 @@ function baglantilariKur() {
 
   $("dugme-tcr-hesapla").onclick = tcrHesapla;
   $("dugme-tcr-sil").onclick = tcrSonuSil;
+  $("dugme-birim-ekle").onclick = birimEkle;
   ["tcr-tcr", "tcr-scr", "tcr-rqd"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
     if (olay.key !== "Enter") return;
     i < 2 ? $(hepsi[i + 1]).focus() : tcrHesapla();
