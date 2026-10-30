@@ -15,7 +15,7 @@ async function hazirla() {
   self.rakamAgi = rakamAgiOlustur(agirliklar, cekirdek);
   const pyodide = await loadPyodide({ indexURL: PYODIDE });
   await pyodide.loadPackage(["numpy", "opencv-python"]);
-  for (const ad of ["gorsel_okuma.py", "telefon.py"]) {
+  for (const ad of ["gorsel_okuma.py", "karot_olcum.py", "telefon.py"]) {
     pyodide.FS.writeFile("/home/pyodide/" + ad, new Uint8Array(await indir(ad)));
   }
   pyodide.runPython("import sys, os; sys.path.insert(0, '/home/pyodide'); os.chdir('/home/pyodide')");
@@ -39,6 +39,18 @@ self.onmessage = async (olay) => {
       sonuc = JSON.parse(telefon.manevralar(JSON.stringify(veri.numuneler), veri.baslangic));
     } else if (istek === "spt_uzunlugu") {
       sonuc = telefon.spt_uzunlugu(JSON.stringify(veri.darbeler));
+    } else if (istek === "karot_resmi") {
+      telefon.karot_resmi(veri.piksel, veri.genislik, veri.yukseklik);
+      sonuc = true;
+    } else if (istek === "karot_seritleri") {
+      sonuc = JSON.parse(telefon.karot_seritleri(JSON.stringify(veri)));
+      const aktarilacaklar = [];
+      sonuc.forEach((serit, i) => {
+        serit.piksel = telefon.karot_serit_pikseli(i);
+        aktarilacaklar.push(serit.piksel.buffer);
+      });
+      self.postMessage({ no, sonuc }, aktarilacaklar);
+      return;
     }
     self.postMessage({ no, sonuc });
   } catch (hata) {

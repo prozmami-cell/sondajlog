@@ -96,6 +96,7 @@
         <button class="ana" id="dugme-tcr-hesapla">Hesapla ve Kaydet</button>
         <button id="dugme-tcr-sil">Son Satırı Sil</button>
       </div>
+      <label class="dosya-dugmesi genis">Fotoğraftan Ölç<input type="file" accept="image/*" id="karot-foto-sec" hidden></label>
     </div>
     <div class="liste-baslik">
       <span>Sonuçlar</span>
@@ -157,7 +158,8 @@
   <div class="katman-govde">
     <div id="kuyu-listesi"></div>
     <label class="dosya-dugmesi genis">Dosyadan Aç (.json)<input type="file" accept=".json,application/json" id="dosya-ac" hidden></label>
-    <p class="aciklama">Kayıtlar bu telefonda otomatik saklanır. Bilgisayara aktarmak için üstteki paylaş düğmesiyle dosyayı gönderin ve bilgisayardaki Logvera'da "Aç" ile açın.</p>
+    <p class="aciklama">Kayıtlar bu telefonda otomatik saklanır.</p>
+    <p class="aciklama"><b>Bilgisayara anında göndermek için:</b> üstteki paylaş düğmesi → <b>Dosyalara Kaydet</b> → OneDrive › <b>Logvera</b> klasörü → Kaydet. Aynı adlı dosya varsa <b>Değiştir</b>'i seçin. Bilgisayardaki Logvera'da "Telefonu İzle" açıksa kuyu kendiliğinden güncellenir.</p>
   </div>
 </div>
 
@@ -197,6 +199,48 @@
       <button id="duzen-sil">Sil</button>
       <button id="duzen-ekle">Altına Ekle</button>
     </div>
+  </div>
+</div>
+
+<!-- KAROT ÖLÇÜMÜ -->
+<div class="katman" id="katman-karot" hidden>
+  <div class="katman-ust">
+    <button class="metin" id="karot-tamamla">Tamamla</button>
+    <div class="katman-baslik">Karot Ölçümü</div>
+    <button class="metin kalin" id="karot-kaydet">Kaydet</button>
+  </div>
+  <div class="goruntuleyici karot-goruntu">
+    <canvas id="karot-tuval"></canvas>
+    <div class="goruntu-araclari">
+      <button class="kucuk koyu" id="karot-sola">⟲</button>
+      <button class="kucuk koyu" id="karot-saga">⟳</button>
+      <button class="kucuk koyu" id="karot-kirp">Kırp</button>
+      <button class="kucuk koyu" id="karot-tum">Tümü</button>
+      <span id="karot-durum"></span>
+    </div>
+  </div>
+  <div class="karot-panel">
+    <label class="karot-manevra">Manevra<select id="karot-manevra"></select></label>
+    <div class="karot-modlar" id="karot-modlar">
+      <button data-mod="nokta" class="secili">1. Noktalar</button>
+      <button data-mod="sinir">2. Baş./Bitiş</button>
+      <button data-mod="kirik">3. Kırık</button>
+      <button data-mod="tur">4. Tür</button>
+    </div>
+    <p class="aciklama" id="karot-ipucu"></p>
+    <div class="dugmeler">
+      <button class="kucuk" id="karot-yeni-sira">Yeni Sıra</button>
+      <button class="kucuk" id="karot-son-nokta">Son Noktayı Sil</button>
+      <button class="kucuk" id="karot-geri">Geri Al</button>
+    </div>
+    <canvas id="karot-serit"></canvas>
+    <div class="karot-sonuc" id="karot-sonuc"></div>
+    <div class="karot-bilgi" id="karot-bilgi"></div>
+    <button class="ana genis" id="karot-kaydet-alt">Kaydet → TCR Listesi</button>
+    <button class="genis" id="karot-devam">Manevra Sonraki Fotoğrafta Devam Ediyor →</button>
+    <input type="file" accept="image/*" id="karot-devam-dosya" hidden>
+    <label class="dosya-dugmesi genis">Sonraki Görsele Geç →<input type="file" accept="image/*" id="karot-sonraki" hidden></label>
+    <button class="genis" id="karot-tamamla-alt">Görseli Tamamla ✓</button>
   </div>
 </div>
 

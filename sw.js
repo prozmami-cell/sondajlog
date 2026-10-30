@@ -1,9 +1,9 @@
 // Uygulama dosyalarını ve okuma motorunu (Pyodide) önbelleğe alır; internet yokken de açılır.
-const ONBELLEK = "sondajlog-v1";
+const ONBELLEK = "sondajlog-v2";
 const MOTOR_ONBELLEGI = "sondajlog-motor-v1";
 const UYGULAMA = [
   "./", "index.html", "stil.css", "uygulama.js", "isci.js", "rakam_agi.js",
-  "rakam_cekirdek.wasm", "rakam_agirliklari.bin", "gorsel_okuma.py", "telefon.py",
+  "rakam_cekirdek.wasm", "rakam_agirliklari.bin", "gorsel_okuma.py", "karot_olcum.py", "telefon.py",
   "manifest.webmanifest", "simge-180.png", "simge-192.png", "simge-512.png", "logo-baslik.png",
 ];
 

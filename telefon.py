@@ -1,9 +1,11 @@
-"""Telefonda gorsel_okuma.py'yi değiştirmeden çalıştırmak için köprü."""
+"""Telefonda gorsel_okuma.py ve karot_olcum.py'yi değiştirmeden çalıştırmak için köprü."""
 import json
+import cv2
 import numpy as np
 import js
 from pyodide.ffi import to_js
 import gorsel_okuma
+import karot_olcum
 
 resimler = {}
 gorsel_okuma.goruntu_oku = lambda yol: resimler.get(yol)
@@ -63,3 +65,30 @@ def manevralar(numuneler_json, baslangic):
 
 def spt_uzunlugu(darbeler_json):
     return gorsel_okuma.spt_uzunlugu(json.loads(darbeler_json))
+
+
+# ---------- karot ölçümü ----------
+karot = {"img": None, "ton": None, "pikseller": []}
+
+
+def karot_resmi(piksel, genislik, yukseklik):
+    rgba = np.asarray(piksel.to_py(), np.uint8).reshape(yukseklik, genislik, 4)
+    karot["img"] = np.ascontiguousarray(rgba[:, :, 2::-1])
+    karot["ton"] = karot_olcum.baskin_ton(karot["img"])
+
+
+def karot_seritleri(istek_json):
+    """Başlangıç ile bitiş arasındaki şeritler ve önerilen parçaları; şerit pikselleri ayrıca alınır."""
+    istek = json.loads(istek_json)
+    diziler = istek["diziler"]
+    sonuc, karot["pikseller"] = [], []
+    for s, c0, c1 in karot_olcum.aralik_parcalari(diziler, tuple(istek["baslangic"]), tuple(istek["bitis"])):
+        serit = karot_olcum.serit_cikar(karot["img"], diziler[s], c0, c1)
+        sonuc.append({"sira": s, "c0": c0, "c1": c1, "genislik": serit.shape[1], "yukseklik": serit.shape[0],
+                      "oneri": karot_olcum.serit_oner(serit, karot["ton"])})
+        karot["pikseller"].append(cv2.cvtColor(serit, cv2.COLOR_BGR2RGBA))
+    return json.dumps(sonuc, default=_sade)
+
+
+def karot_serit_pikseli(sira):
+    return to_js(np.ascontiguousarray(karot["pikseller"][sira]).ravel())
