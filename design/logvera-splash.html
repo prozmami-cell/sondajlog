@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logvera – Giriş Animasyonu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #eef1f6;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 16px;
+  }
+  .phone {
+    position: relative;
+    width: min(340px, 86vw);
+    aspect-ratio: 9 / 19.5;
+    max-height: 78vh;
+    background: #ffffff;
+    border-radius: 42px;
+    border: 10px solid #0b1f5c;
+    box-shadow: 0 20px 50px rgba(11,31,92,.25);
+    overflow: hidden;
+  }
+  #zoom { position: absolute; inset: 0; will-change: transform, opacity; backface-visibility: hidden; }
+  .phone svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .app {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    opacity: 0; padding: 48px 20px 20px; gap: 12px;
+    background: linear-gradient(180deg, #f3f6ff, #ffffff);
+  }
+  .app h2 { font: 800 22px "Poppins", sans-serif; color: #0b1f5c; }
+  .app .card { height: 70px; border-radius: 16px; background: #e6ecff; }
+  .app .card.big { height: 130px; background: linear-gradient(135deg,#4c7bff,#2f5be0); }
+  .tabs, .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: 600 14px system-ui, sans-serif; padding: 9px 16px; border-radius: 999px;
+    border: 1px solid #c9d3e6; background: #fff; color: #0b1f5c; cursor: pointer;
+  }
+  button.on, button.primary { background: #2f5be0; color: #fff; border-color: #2f5be0; }
+  .hint { font-size: 13px; color: #5a6782; text-align: center; max-width: 340px; }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button id="v1" class="on">1. Fikir: Delip çıkan uç</button>
+  <button id="v2">Birleşik: Dönerek yukarı çıkış</button>
+</div>
+
+<div class="phone">
+  <div class="app" id="app">
+    <h2>Kuyularım</h2>
+    <div class="card big"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+  </div>
+
+  <div id="zoom">
+  <svg id="stage" viewBox="200 -242 540 1170" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <!-- gövde şekli -->
+      <clipPath id="bodyClip">
+        <path d="M389 90 L549 90 L549 395 L470 450 L389 395 Z"/>
+      </clipPath>
+      <!-- zemin çizgisinin altı görünmesin -->
+      <clipPath id="groundClip">
+        <rect x="0" y="-2000" width="1000" height="2466"/>
+      </clipPath>
+    </defs>
+
+    <!-- Zemin çizgisi (soldan sağa çizilir) -->
+    <line id="ground" x1="300" y1="466" x2="636" y2="466" stroke="#c4cfe6" stroke-width="4"
+          stroke-linecap="round" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+
+    <g id="logo">
+      <g clip-path="url(#groundClip)">
+        <g id="drill">
+          <g id="shake">
+            <!-- gövde -->
+            <path d="M389 90 L549 90 L549 395 L470 450 L389 395 Z" fill="#2f5be0"/>
+
+            <!-- dönen sarmal şeritler -->
+            <g clip-path="url(#bodyClip)">
+              <g id="stripes"></g>
+              <!-- son halde alt kısımdaki şeritleri örten katman (LV alanı) -->
+              <path id="cover" class="cov" d="M370 277 C430 277 500 255 566 237 L566 470 L370 470 Z" fill="#2f5be0" style="opacity:0"/>
+              <path id="coverTop" class="cov" d="M370 60 L566 60 L566 151 C500 169 430 191 370 191 Z" fill="#2f5be0" style="opacity:0"/>
+            </g>
+
+            <!-- üst kapak -->
+            <ellipse cx="469" cy="90" rx="80" ry="22" fill="#2f5be0" stroke="#ffffff" stroke-width="9"/>
+
+            <!-- LV -->
+            <!-- L: soldaki beyaz dikey çubuk + uca doğru inen ayağı -->
+            <path id="Lshape" d="M405 277 L437 270 L437 383 L479 411 L473 437 L405 400 Z" fill="#ffffff" style="opacity:0"/>
+            <!-- L ile V arasındaki kısa şerit -->
+            <path id="stripe3" d="M462 309 C490 304 520 296 549 287 L549 300 C520 309 490 317 462 323 Q455 324 455 316 Q455 310 462 309 Z" fill="#ffffff" style="opacity:0"/>
+            <!-- V -->
+            <path id="Vshape" d="M467 348 L496 348 L502 390 L516 333 L546 333 L503 426 L487 426 Z" fill="#ffffff" style="opacity:0"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- toz parçacıkları -->
+      <g id="dust"></g>
+
+      <!-- Yazı -->
+      <text id="tLog" x="470" y="610" text-anchor="end" font-family="Poppins, sans-serif" font-weight="800"
+            font-size="122" letter-spacing="-3" fill="#0b1f5c" style="opacity:0">Log</text>
+      <text id="tVera" x="470" y="610" text-anchor="start" font-family="Poppins, sans-serif" font-weight="800"
+            font-size="122" letter-spacing="-3" fill="#2f5be0" style="opacity:0">vera</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="primary" id="replay">Tekrar oynat</button>
+  <button id="slow">Yavaş çekim</button>
+</div>
+<p class="hint" id="hint"></p>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const PERIOD = 70;           // şeritler arası mesafe
+  const anims = [];
+  let rate = 1, variant = 1;
+
+  // --- şeritleri oluştur (dönme sırasında yukarı kayacaklar) ---
+  const stripes = $('stripes');
+  for (let k = -2; k < 32; k++) {
+    const y = 192 + k * PERIOD;
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', `M370 ${y} C430 ${y} 500 ${y-22} 566 ${y-40} L566 ${y-25} C500 ${y-7} 430 ${y+15} 370 ${y+15} Z`);
+    p.setAttribute('fill', '#ffffff');
+    stripes.appendChild(p);
+  }
+
+  // --- toz parçacıkları ---
+  const dust = $('dust'), parts = [];
+  for (let i = 0; i < 14; i++) {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', 468); c.setAttribute('cy', 464);
+    c.setAttribute('r', 4 + Math.random() * 5);
+    c.setAttribute('fill', i % 3 ? '#b9c6e6' : '#8fa6e8');
+    c.style.opacity = 0;
+    dust.appendChild(c); parts.push(c);
+  }
+
+  function A(el, frames, opts) {
+    const a = el.animate(frames, Object.assign({ fill: 'both', easing: 'ease-out' }, opts));
+    a.playbackRate = rate;
+    anims.push(a);
+    return a;
+  }
+
+  // Dönme: hız profili (hızlan, sabit, yavaşla). Sonunda şeritler tam başlangıç
+  // konumuna (PERIOD'un katı) denk gelsin ki logo orijinal haliyle dursun.
+  function spin(delay, total, decelFrom) {
+    const N = 60, accel = 250, v = [];
+    for (let i = 0; i <= N; i++) {
+      const t = total * i / N;
+      let s = 1;
+      if (t < accel) s = t / accel;
+      if (t > decelFrom) s = Math.max(0, 1 - (t - decelFrom) / (total - decelFrom));
+      v.push(s * s * (3 - 2 * s) || (s > 0 ? s : 0));
+    }
+    const d = [0];
+    for (let i = 1; i <= N; i++) d.push(d[i-1] + (v[i] + v[i-1]) / 2);
+    const target = total / 1000 * 520;               // ~520 px/sn kayma
+    const turns = Math.max(1, Math.round(target / PERIOD));
+    const scale = turns * PERIOD / d[N];
+    const frames = d.map((x, i) => ({ transform: `translateY(${-x * scale}px)`, offset: i / N }));
+    A(stripes, frames, { delay, duration: total, easing: 'linear' });
+  }
+
+  function dustBurst(delay, count, upward) {
+    parts.forEach((c, i) => {
+      const dx = (Math.random() * 2 - 1) * 90;
+      const dy = -(10 + Math.random() * (upward ? 70 : 40));
+      for (let b = 0; b < count; b++) {
+        A(c, [
+          { opacity: 0, transform: 'translate(0,0) scale(.6)' },
+          { opacity: .9, transform: `translate(${dx*.3}px,${dy*.5}px) scale(1)`, offset: .25 },
+          { opacity: 0, transform: `translate(${dx}px,${dy}px) scale(.4)` }
+        ], { delay: delay + b * 260 + i * 18, duration: 520, fill: 'none', easing: 'cubic-bezier(.2,.7,.3,1)' });
+      }
+    });
+  }
+
+  function layoutWords() {
+    try {
+      const w1 = $('tLog').getComputedTextLength(), w2 = $('tVera').getComputedTextLength();
+      const x = 468 - (w1 + w2) / 2 + w1;
+      $('tLog').setAttribute('x', x); $('tVera').setAttribute('x', x);
+    } catch (e) {}
+  }
+
+  function ending(t) {
+    // ground kaybolur, alt şeritler örtülür, LV çizilir, yazılar gelir, zoom
+    A($('ground'), [{ opacity: 1 }, { opacity: 0 }], { delay: t.groundOut, duration: 300 });
+    // dönme durunca fazla şeritler örtülür, logodaki iki şerit kalır
+    A($('cover'), [{ opacity: 0 }, { opacity: 1 }], { delay: t.lv - 150, duration: 300 });
+    A($('coverTop'), [{ opacity: 0 }, { opacity: 1 }], { delay: t.lv - 150, duration: 300 });
+    // L yukarıdan aşağı uzar
+    const L = $('Lshape'); L.style.transformBox = 'fill-box'; L.style.transformOrigin = 'top';
+    A(L, [{ opacity: 1, transform: 'scaleY(0)' }, { opacity: 1, transform: 'scaleY(1)' }],
+      { delay: t.lv, duration: 450, easing: 'cubic-bezier(.3,.7,.3,1)' });
+    // kısa şerit soldan sağa uzar
+    const S3 = $('stripe3'); S3.style.transformBox = 'fill-box'; S3.style.transformOrigin = 'left';
+    A(S3, [{ opacity: 1, transform: 'scaleX(0)' }, { opacity: 1, transform: 'scaleX(1)' }],
+      { delay: t.lv + 250, duration: 350, easing: 'cubic-bezier(.3,.7,.3,1)' });
+    // V belirir
+    const V = $('Vshape'); V.style.transformBox = 'fill-box'; V.style.transformOrigin = 'center';
+    A(V, [
+      { opacity: 0, transform: 'scale(.3)' },
+      { opacity: 1, transform: 'scale(1.15)', offset: .7 },
+      { opacity: 1, transform: 'scale(1)' }
+    ], { delay: t.lv + 400, duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+
+    A($('tLog'), [{ opacity: 0, transform: 'translateX(-70px)' }, { opacity: 1, transform: 'translateX(0)' }],
+      { delay: t.words + 100, duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    A($('tVera'), [{ opacity: 0, transform: 'translateX(70px)' }, { opacity: 1, transform: 'translateX(0)' }],
+      { delay: t.words + 160, duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+
+    const z = $('zoom'), zr = z.getBoundingClientRect();
+    const br = $('cover').closest('#shake').getBoundingClientRect();
+    z.style.transformOrigin = `${br.left + br.width/2 - zr.left}px ${br.top + br.height*0.55 - zr.top}px`;
+    A(z, [
+      { transform: 'scale(1)', opacity: 1 },
+      { transform: 'scale(0.94)', opacity: 1, offset: .2 },
+      { transform: 'scale(5)', opacity: 0 }
+    ], { delay: t.zoom, duration: 700, easing: 'cubic-bezier(.5,0,.75,.25)' });
+    A($('app'), [{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'scale(1)' }],
+      { delay: t.zoom + 450, duration: 400 });
+    $('hint').textContent = `Süre: ~${((t.zoom + 850) / 1000).toFixed(1).replace('.', ',')} sn`;
+  }
+
+  function shake(delay, duration) {
+    A($('shake'), [
+      { transform: 'translateX(0)' }, { transform: 'translateX(-2.5px)' },
+      { transform: 'translateX(2.5px)' }, { transform: 'translateX(0)' }
+    ], { delay, duration: 90, iterations: Math.round(duration / 90), fill: 'none', easing: 'linear' });
+  }
+
+  function play() {
+    anims.forEach(a => a.cancel());
+    anims.length = 0;
+    layoutWords();
+
+    // zemin çizgisi çizilir
+    A($('ground'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { delay: 0, duration: 350 });
+
+    if (variant === 1) {
+      // 1. Fikir: yukarıdan dönerek iner, zemini deler, geri çıkıp yerine oturur
+      A($('drill'), [
+        { transform: 'translateY(-700px)', offset: 0, easing: 'cubic-bezier(.2,.7,.3,1)' },
+        { transform: 'translateY(0px)',   offset: .32, easing: 'ease-in-out' },
+        { transform: 'translateY(40px)',  offset: .7,  easing: 'cubic-bezier(.3,0,.2,1)' },
+        { transform: 'translateY(-8px)',  offset: .9,  easing: 'ease-out' },
+        { transform: 'translateY(0px)',   offset: 1 }
+      ], { delay: 200, duration: 2100 });
+      shake(870, 800);
+      dustBurst(900, 3, false);
+      spin(200, 2500, 1500);
+      ending({ groundOut: 2200, lv: 2550, words: 3050, zoom: 3950 });
+    } else {
+      // Birleşik: yerin altından dönerek yukarı çıkar (karot çekilir gibi)
+      A($('drill'), [
+        { transform: 'translateY(560px)', offset: 0, easing: 'cubic-bezier(.45,.05,.3,1)' },
+        { transform: 'translateY(-14px)', offset: .85, easing: 'ease-in-out' },
+        { transform: 'translateY(0px)',   offset: 1 }
+      ], { delay: 350, duration: 1800 });
+      shake(350, 1300);
+      dustBurst(560, 4, true);
+      spin(350, 2400, 1400);
+      ending({ groundOut: 2100, lv: 2450, words: 2950, zoom: 3850 });
+    }
+  }
+
+  $('v1').onclick = () => { variant = 1; $('v1').classList.add('on'); $('v2').classList.remove('on'); rate = 1; play(); };
+  $('v2').onclick = () => { variant = 2; $('v2').classList.add('on'); $('v1').classList.remove('on'); rate = 1; play(); };
+  $('replay').onclick = () => { rate = 1; play(); };
+  $('slow').onclick = () => { rate = 0.35; play(); };
+
+  const start = () => setTimeout(play, 300);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(start);
+  else start();
+})();
+</script>
+</body>
+</html>
