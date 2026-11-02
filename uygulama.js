@@ -705,12 +705,59 @@ function katmaniKapat(kimlik) {
 }
 
 // ---------- Sekmeler ----------
+const SEKME_SIRASI = ["manevra", "spt", "tcr", "tanim", "foto"];
+let aktifSekme = "manevra";
+let sekmeGecisiniBitir = null;
+const hareketAzaltilmis = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 function sekmeSec(ad) {
+  const onceki = aktifSekme, eski = $("sekme-" + onceki), yeni = $("sekme-" + ad);
+  sekmeGecisiniBitir?.();
+  aktifSekme = ad;
   for (const dugme of document.querySelectorAll(".sekmeler button")) dugme.classList.toggle("secili", dugme.dataset.sekme === ad);
-  for (const bolum of document.querySelectorAll(".sekme")) bolum.hidden = bolum.id !== "sekme-" + ad;
+  camiTasi();
+  const gecis = onceki !== ad && !hareketAzaltilmis() && eski.animate;
+  // eski sayfa kayarken yerinde dursun diye kaydırılmadan önceki konumu alınır
+  const eskiUst = eski.offsetTop - window.scrollY, eskiSol = eski.offsetLeft, eskiGenislik = eski.offsetWidth;
+  for (const bolum of document.querySelectorAll(".sekme")) bolum.hidden = bolum !== yeni && !(gecis && bolum === eski);
   window.scrollTo(0, 0);
+  if (gecis) sekmeGecisi(eski, yeni, SEKME_SIRASI.indexOf(ad) > SEKME_SIRASI.indexOf(onceki) ? 1 : -1, eskiUst, eskiSol, eskiGenislik);
   if (ad === "foto") motoruHazirla();
   if (ad === "tanim") tanimBoylariniAyarla();
+}
+
+// yon 1: sağdaki sekmeye geçiliyor, yeni sayfa sağdan gelir, eski sola kayar
+function sekmeGecisi(eski, yeni, yon, ust, sol, genislik) {
+  eski.classList.add("sekme-cikan");
+  Object.assign(eski.style, { top: `${ust}px`, left: `${sol}px`, width: `${genislik}px` });
+  const ayar = { duration: 300, easing: "cubic-bezier(.25, .8, .25, 1)" };
+  const cikis = eski.animate([{ transform: "translateX(0)", opacity: 1 }, { transform: `translateX(${-yon * 35}%)`, opacity: 0 }], ayar);
+  const giris = yeni.animate([{ transform: `translateX(${yon * 35}%)`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }], ayar);
+  const bitir = () => {
+    if (sekmeGecisiniBitir !== bitir) return;
+    sekmeGecisiniBitir = null;
+    cikis.cancel();
+    giris.cancel();
+    eski.classList.remove("sekme-cikan");
+    eski.style.top = eski.style.left = eski.style.width = "";
+    if (eski !== $("sekme-" + aktifSekme)) eski.hidden = true;
+  };
+  sekmeGecisiniBitir = bitir;
+  giris.finished.then(bitir, bitir);
+}
+
+// seçili sekmenin simgesinin arkasındaki cam
+function camiTasi() {
+  const cam = $("sekme-cam"), dugme = document.querySelector(`.sekmeler button[data-sekme="${aktifSekme}"]`);
+  const simge = dugme?.querySelector("svg");
+  if (!cam || !simge) return;
+  const nav = cam.parentElement.getBoundingClientRect(), s = simge.getBoundingClientRect();
+  const x = s.left + s.width / 2 - nav.left - cam.offsetWidth / 2, y = s.top + s.height / 2 - nav.top - cam.offsetHeight / 2;
+  const ilk = cam.style.opacity !== "1";
+  if (ilk) cam.style.transition = "none";  // ilk konumuna kaymadan yerleşsin
+  cam.style.transform = `translate(${x}px, ${y}px)`;
+  cam.style.opacity = "1";
+  if (ilk) { cam.offsetWidth; cam.style.transition = ""; }
 }
 
 // ---------- Fotoğraf okuma işçisi ----------
@@ -2105,6 +2152,8 @@ function baslat() {
   if (aktifKimlik && kuyular[aktifKimlik]) kuyuAc(aktifKimlik);
   else yeniKuyu();
   ozetiCiz();
+  requestAnimationFrame(camiTasi);
+  window.addEventListener("resize", camiTasi);
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
