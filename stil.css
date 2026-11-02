@@ -19,6 +19,16 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Açılış animasyonu (acilis.js); ilk karede de görünsün diye stilleri burada */
+@font-face {
+  font-family: "Poppins"; font-style: normal; font-weight: 800; font-display: block;
+  src: url("poppins-800.woff2") format("woff2");
+}
+#acilis { position: fixed; inset: 0; z-index: 100; }
+.acilis-zemin { position: absolute; inset: 0; background: #ffffff; will-change: opacity; }
+#acilis-zoom { position: absolute; inset: 0; will-change: transform, opacity; backface-visibility: hidden; }
+#acilis svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
 html, body {
   margin: 0;
   background: var(--zemin);

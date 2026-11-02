@@ -12,9 +12,52 @@
 <link rel="apple-touch-icon" href="simge-180.png">
 <link rel="icon" href="simge-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="poppins-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="stil.css">
 </head>
 <body>
+
+<!-- AÇILIŞ: design/logvera-splash.html, "1. Fikir: Delip çıkan uç" -->
+<div id="acilis" aria-hidden="true">
+  <div class="acilis-zemin" id="acilis-zemin"></div>
+  <div id="acilis-zoom">
+  <svg viewBox="200 -242 540 1170" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <clipPath id="acilis-govde-kirp">
+        <path d="M389 90 L549 90 L549 395 L470 450 L389 395 Z"/>
+      </clipPath>
+      <clipPath id="acilis-zemin-kirp">
+        <rect x="0" y="-2000" width="1000" height="2466"/>
+      </clipPath>
+    </defs>
+    <line id="acilis-cizgi" x1="300" y1="466" x2="636" y2="466" stroke="#c4cfe6" stroke-width="4"
+          stroke-linecap="round" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+    <g>
+      <g clip-path="url(#acilis-zemin-kirp)">
+        <g id="acilis-matkap">
+          <g id="acilis-titre">
+            <path d="M389 90 L549 90 L549 395 L470 450 L389 395 Z" fill="#2f5be0"/>
+            <g clip-path="url(#acilis-govde-kirp)">
+              <g id="acilis-seritler"></g>
+              <path id="acilis-ortu" d="M370 277 C430 277 500 255 566 237 L566 470 L370 470 Z" fill="#2f5be0" style="opacity:0"/>
+              <path id="acilis-ortu-ust" d="M370 60 L566 60 L566 151 C500 169 430 191 370 191 Z" fill="#2f5be0" style="opacity:0"/>
+            </g>
+            <ellipse cx="469" cy="90" rx="80" ry="22" fill="#2f5be0" stroke="#ffffff" stroke-width="9"/>
+            <path id="acilis-l" d="M405 277 L437 270 L437 383 L479 411 L473 437 L405 400 Z" fill="#ffffff" style="opacity:0"/>
+            <path id="acilis-serit3" d="M462 309 C490 304 520 296 549 287 L549 300 C520 309 490 317 462 323 Q455 324 455 316 Q455 310 462 309 Z" fill="#ffffff" style="opacity:0"/>
+            <path id="acilis-v" d="M467 348 L496 348 L502 390 L516 333 L546 333 L503 426 L487 426 Z" fill="#ffffff" style="opacity:0"/>
+          </g>
+        </g>
+      </g>
+      <g id="acilis-toz"></g>
+      <text id="acilis-log" x="470" y="610" text-anchor="end" font-family="Poppins, sans-serif" font-weight="800"
+            font-size="122" letter-spacing="-3" fill="#0b1f5c" style="opacity:0">Log</text>
+      <text id="acilis-vera" x="470" y="610" text-anchor="start" font-family="Poppins, sans-serif" font-weight="800"
+            font-size="122" letter-spacing="-3" fill="#2f5be0" style="opacity:0">vera</text>
+    </g>
+  </svg>
+  </div>
+</div>
 
 <header class="ust">
   <button class="ikon" id="dugme-kuyular" aria-label="Kuyular"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
@@ -253,6 +296,7 @@
   </div>
 </div>
 
+<script src="acilis.js"></script>
 <script src="uygulama.js"></script>
 </body>
 </html>
