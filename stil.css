@@ -46,11 +46,12 @@ input, select, textarea { color: var(--yazi); }
 /* Üst çubuk */
 .ust {
   position: fixed; inset: 0 0 auto 0; z-index: 10;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: var(--ust) 8px 0; height: calc(56px + var(--ust));
   background: var(--kart); border-bottom: 1px solid var(--cizgi);
 }
-.ust-baslik { flex: 1; min-width: 0; text-align: center; }
+/* yan düğmelerin genişliği farklı olsa da logo tam ortada kalsın */
+.ust-baslik { position: absolute; left: 50%; top: calc(var(--ust) + 28px); transform: translate(-50%, -50%); max-width: 48%; text-align: center; }
 .marka { display: inline-flex; align-items: center; }
 .marka img { height: 28px; width: auto; display: block; }
 .alt-yazi { font-size: 13px; color: var(--soluk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -59,6 +60,17 @@ input, select, textarea { color: var(--yazi); }
   background: transparent; font-size: 22px; color: var(--vurgu);
 }
 .ikon:active { background: var(--ikincil); }
+/* üst çubuktaki Kaydet: OneDrive'a gönderilmemiş değişiklik varsa köşesinde nokta */
+.ust-kaydet {
+  position: relative; min-height: 36px; padding: 6px 12px; gap: 4px; border-radius: 10px;
+  background: var(--vurgu); color: #fff; font-size: 14px;
+}
+.ust-kaydet:active { background: var(--vurgu-koyu); }
+.ust-kaydet svg { width: 18px; height: 18px; }
+.kaydet-isareti {
+  position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%;
+  background: #F59E0B; border: 2px solid var(--kart);
+}
 svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 main { padding: 12px 12px 0; max-width: 720px; margin: 0 auto; }

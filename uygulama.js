@@ -56,9 +56,17 @@ function yeniKimlik() {
 }
 
 function kaydet() {
-  kuyular[aktifKimlik] = { veri, guncelleme: Date.now() };
+  // disaAktarim: Kaydet düğmesiyle OneDrive'a en son gönderildiği an; değişiklik ondan sonraysa düğmede nokta çıkar
+  kuyular[aktifKimlik] = { ...kuyular[aktifKimlik], veri, guncelleme: Date.now() };
   depoYaz(DEPO_KUYULAR, kuyular);
   depoYaz(DEPO_AKTIF, aktifKimlik);
+  kaydetIsaretiniCiz();
+}
+
+function kaydetIsaretiniCiz() {
+  const kayit = kuyular[aktifKimlik];
+  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
+  $("kaydet-isareti").hidden = !bekleyen;
 }
 
 function kuyuAc(kimlik) {
@@ -71,6 +79,7 @@ function kuyuAc(kimlik) {
   oneriyiHesapla();
   depoYaz(DEPO_AKTIF, aktifKimlik);
   hepsiniCiz();
+  kaydetIsaretiniCiz();
 }
 
 function yeniKuyu() {
@@ -623,7 +632,8 @@ async function paylas() {
   if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
     try {
       await navigator.share({ files: [dosya], title: dosyaAdi() });
-      durumYaz("Dosya paylaşıldı");
+      disaAktarildi();
+      durumYaz("Kaydedildi: " + dosyaAdi());
     } catch (hata) {
       if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
     }
@@ -632,6 +642,14 @@ async function paylas() {
   const baglanti = Object.assign(document.createElement("a"), { href: URL.createObjectURL(dosya), download: dosyaAdi() });
   baglanti.click();
   setTimeout(() => URL.revokeObjectURL(baglanti.href), 5000);
+  disaAktarildi();
+}
+
+function disaAktarildi() {
+  if (!kuyular[aktifKimlik]) return;
+  kuyular[aktifKimlik].disaAktarim = Date.now();
+  depoYaz(DEPO_KUYULAR, kuyular);
+  kaydetIsaretiniCiz();
 }
 
 async function dosyadanAc(dosya) {
