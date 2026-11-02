@@ -746,13 +746,19 @@ function sekmeGecisi(eski, yeni, yon, ust, sol, genislik) {
   giris.finished.then(bitir, bitir);
 }
 
-// seçili sekmenin simgesinin arkasındaki cam
+// seçili sekmenin simgesini ve yazısını içine alan cam; tüm sekmelerde aynı boyda olsun diye en geniş yazıya göre
 function camiTasi() {
-  const cam = $("sekme-cam"), dugme = document.querySelector(`.sekmeler button[data-sekme="${aktifSekme}"]`);
-  const simge = dugme?.querySelector("svg");
-  if (!cam || !simge) return;
-  const nav = cam.parentElement.getBoundingClientRect(), s = simge.getBoundingClientRect();
-  const x = s.left + s.width / 2 - nav.left - cam.offsetWidth / 2, y = s.top + s.height / 2 - nav.top - cam.offsetHeight / 2;
+  const cam = $("sekme-cam"), dugmeler = [...document.querySelectorAll(".sekmeler button")];
+  const dugme = dugmeler.find((d) => d.dataset.sekme === aktifSekme);
+  if (!cam || !dugme) return;
+  const icerik = (d) => { const aralik = document.createRange(); aralik.selectNodeContents(d); return aralik.getBoundingClientRect(); };
+  const kutular = dugmeler.map(icerik);
+  const genislik = Math.min(dugme.offsetWidth - 4, Math.max(...kutular.map((k) => k.width)) + 16);
+  const yukseklik = Math.min(dugme.offsetHeight - 2, Math.max(...kutular.map((k) => k.height)) + 8);
+  cam.style.width = `${genislik}px`;
+  cam.style.height = `${yukseklik}px`;
+  const nav = cam.parentElement.getBoundingClientRect(), s = kutular[dugmeler.indexOf(dugme)];
+  const x = s.left + s.width / 2 - nav.left - genislik / 2, y = s.top + s.height / 2 - nav.top - yukseklik / 2;
   const ilk = cam.style.opacity !== "1";
   if (ilk) cam.style.transition = "none";  // ilk konumuna kaymadan yerleşsin
   cam.style.transform = `translate(${x}px, ${y}px)`;

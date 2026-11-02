@@ -207,9 +207,9 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 .sekmeler button svg { transition: transform .3s cubic-bezier(.3, 1.4, .5, 1); }
 .sekmeler button.secili { color: var(--vurgu); }
 .sekmeler button.secili svg { transform: scale(1.08); }
-/* seçili sekmenin simgesinin arkasındaki cam; simgeden biraz büyük, sekmeler arasında kayar */
+/* seçili sekmenin simgesini ve yazısını içine alan cam; boyutu uygulama.js (camiTasi) verir, sekmeler arasında kayar */
 .sekme-cam {
-  position: absolute; left: 0; top: 0; z-index: 0; width: 42px; height: 32px; border-radius: 12px;
+  position: absolute; left: 0; top: 0; z-index: 0; width: 60px; height: 50px; border-radius: 14px;
   pointer-events: none; opacity: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, .85), rgba(219, 234, 254, .6));
   border: 1px solid rgba(37, 99, 235, .18);
