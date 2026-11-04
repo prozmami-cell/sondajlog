@@ -220,6 +220,11 @@ function sptListesi() {
   return veri.manevralar.filter((m) => m[2].startsWith("SPT"));
 }
 
+// LogPlot SPT-N grafiği: her SPT, başlangıç derinliğinin 0,25 m altına N değeriyle yazılır (1,50-1,95 -> 1,75)
+function sptGrafikSatirlari() {
+  return sptListesi().map(([bas, , tip]) => [yaziya(r2(sayiya(bas) + 0.25)), (veri.spt_degerleri[tip] || [])[3] ?? ""]);
+}
+
 function sptKaydet() {
   const secilen = $("spt-secim").value;
   const numaralar = sptListesi().map((m) => m[2]);
@@ -336,6 +341,8 @@ function sptCiz(secilecek) {
     sptKutulariniDoldur();
     $("darbe-1").focus();
   }));
+  satirlariCiz($("tablo-spt-grafik"), ["Derinlik", "SPT-N"],
+    sptGrafikSatirlari().map(([derinlik, n]) => ({ hucreler: [derinlik, n], sinif: n === "" ? "bos" : "" })), "Henüz SPT yok");
 }
 
 function sptKutulariniDoldur() {
@@ -606,6 +613,10 @@ async function kopyala(tur) {
     "spt-aralik": () => sptler.map((m) => `${m[0]}\t${m[1]}`),
     "spt-darbe": () => sptler.map((m) => darbe(m[2]).join("\t")),
     "spt-n": () => sptler.map((m) => darbe(m[2])[3]),
+    "spt-d1": () => sptler.map((m) => darbe(m[2])[0]),
+    "spt-d2": () => sptler.map((m) => darbe(m[2])[1]),
+    "spt-d3": () => sptler.map((m) => darbe(m[2])[2]),
+    "spt-grafik": () => sptGrafikSatirlari().map(([derinlik, n]) => `${derinlik}\t${n}`),
     "tcr": () => veri.tcr_sonuclari.map((s) => String(s[1])),
     "scr": () => veri.tcr_sonuclari.map((s) => String(s[2])),
     "rqd": () => veri.tcr_sonuclari.map((s) => String(s[3])),

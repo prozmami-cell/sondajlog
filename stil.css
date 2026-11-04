@@ -140,6 +140,10 @@ button.metin.kalin { font-weight: 700; }
   margin: 4px 2px 6px; font-weight: 600; font-size: 15px;
 }
 .liste-baslik button { margin-left: 4px; }
+.kopya-satiri { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: -2px 2px 8px; font-size: 13px; color: var(--soluk); }
+.kopya-satiri span { margin-right: auto; }
+#tablo-spt-grafik .satir { grid-template-columns: 1fr 1fr; text-align: center; }
+.liste-baslik .ipucu { font-weight: 400; font-size: 13px; color: var(--soluk); margin-left: 6px; }
 .tablo { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
 .satir {
   display: grid; align-items: center; gap: 6px;
