@@ -775,24 +775,80 @@ function sekmeGecisi(eski, yeni, yon, ust, sol, genislik) {
   giris.finished.then(bitir, bitir);
 }
 
-// seçili sekmenin simgesini ve yazısını içine alan cam; tüm sekmelerde aynı boyda olsun diye en geniş yazıya göre
+// ---------- Alt menü çubuğu ----------
+// Çubuk yüzen bir haptır; seçili sekmenin simgesi üstte yuvarlak balonda durur ve çubuğun üst kenarı
+// balonun çevresinde yumuşakça kabarır. Biçim, hap ile balon halkasının "yumuşak birleşimi" olarak çizilir.
+const CUBUK = { kenar: 12, ust: 32, alt: 92, balonY: 34, halka: 31, yumusaklik: 16 };
+const balonDurumu = { x: null, hedef: null, kare: null };
+
+function sekmeCubuguYolu(genislik, bx) {
+  const { kenar, ust, alt, balonY, halka, yumusaklik } = CUBUK;
+  const x0 = kenar, x1 = genislik - kenar, r = (alt - ust) / 2;
+  // hapın üst kenarı (uçlarda yarım daire)
+  const hapUst = (x) => {
+    const merkez = x < x0 + r ? x0 + r : x > x1 - r ? x1 - r : x;
+    const dx = x - merkez;
+    return ust + r - Math.sqrt(Math.max(0, r * r - dx * dx));
+  };
+  // balon halkasının üstü; halkanın dışında çok aşağıda say
+  const halkaUst = (x) => {
+    const dx = x - bx;
+    return Math.abs(dx) < halka ? balonY - Math.sqrt(halka * halka - dx * dx) : alt + 100;
+  };
+  const yumusakEnUst = (a, b) => {
+    const h = Math.max(yumusaklik - Math.abs(a - b), 0) / yumusaklik;
+    return Math.min(a, b) - h * h * yumusaklik * 0.25;
+  };
+  const noktalar = [];
+  for (let x = x0; x <= x1; x += x < x0 + 6 || x > x1 - 6 ? 0.5 : 2) {
+    noktalar.push([x, bx === null ? hapUst(x) : yumusakEnUst(hapUst(x), halkaUst(x))]);
+  }
+  noktalar.push([x1, hapUst(x1)]);
+  for (let x = x1; x >= x0; x -= x < x0 + 6 || x > x1 - 6 ? 0.5 : 2) noktalar.push([x, ust + alt - hapUst(x)]);
+  return "M" + noktalar.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L") + "Z";
+}
+
+function sekmeCubugunuCiz(bx) {
+  const zemin = $("sekme-zemin"), yol = sekmeCubuguYolu(zemin.clientWidth, bx);
+  zemin.style.clipPath = `path("${yol}")`;
+  zemin.style.webkitClipPath = `path("${yol}")`;
+  $("sekme-kenar-yolu").setAttribute("d", yol);
+  if (bx !== null) $("sekme-balon").style.transform = `translateX(${bx - 25}px)`;
+}
+
 function camiTasi() {
-  const cam = $("sekme-cam"), dugmeler = [...document.querySelectorAll(".sekmeler button")];
-  const dugme = dugmeler.find((d) => d.dataset.sekme === aktifSekme);
-  if (!cam || !dugme) return;
-  const icerik = (d) => { const aralik = document.createRange(); aralik.selectNodeContents(d); return aralik.getBoundingClientRect(); };
-  const kutular = dugmeler.map(icerik);
-  const genislik = Math.min(dugme.offsetWidth - 4, Math.max(...kutular.map((k) => k.width)) + 16);
-  const yukseklik = Math.min(dugme.offsetHeight - 2, Math.max(...kutular.map((k) => k.height)) + 8);
-  cam.style.width = `${genislik}px`;
-  cam.style.height = `${yukseklik}px`;
-  const nav = cam.parentElement.getBoundingClientRect(), s = kutular[dugmeler.indexOf(dugme)];
-  const x = s.left + s.width / 2 - nav.left - genislik / 2, y = s.top + s.height / 2 - nav.top - yukseklik / 2;
-  const ilk = cam.style.opacity !== "1";
-  if (ilk) cam.style.transition = "none";  // ilk konumuna kaymadan yerleşsin
-  cam.style.transform = `translate(${x}px, ${y}px)`;
-  cam.style.opacity = "1";
-  if (ilk) { cam.offsetWidth; cam.style.transition = ""; }
+  const balon = $("sekme-balon"), dugme = document.querySelector(`.sekmeler button[data-sekme="${aktifSekme}"]`);
+  if (!balon || !dugme) return;
+  const nav = balon.parentElement.getBoundingClientRect(), kutu = dugme.getBoundingClientRect();
+  const hedef = kutu.left + kutu.width / 2 - nav.left;
+  // balonda seçili sekmenin simgesi; değişince küçükten büyüyerek belirir
+  const simge = dugme.querySelector("svg");
+  if (balon.dataset.sekme !== aktifSekme) {
+    balon.innerHTML = simge.outerHTML;
+    balon.dataset.sekme = aktifSekme;
+    if (balonDurumu.x !== null && !hareketAzaltilmis()) {
+      balon.firstElementChild.animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }],
+        { duration: 320, easing: "cubic-bezier(.3, 1.5, .5, 1)" });
+    }
+  }
+  balon.style.opacity = "1";
+  cancelAnimationFrame(balonDurumu.kare);
+  const baslangic = balonDurumu.x;
+  if (baslangic === null || hareketAzaltilmis() || Math.abs(baslangic - hedef) < 0.5) {
+    balonDurumu.x = hedef;
+    sekmeCubugunuCiz(hedef);
+    return;
+  }
+  // hafif yaylanarak kayar (easeOutBack)
+  const sure = 460, t0 = performance.now();
+  const egri = (t) => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+  const adim = (simdi) => {
+    const t = Math.min(1, (simdi - t0) / sure);
+    balonDurumu.x = baslangic + (hedef - baslangic) * egri(t);
+    sekmeCubugunuCiz(balonDurumu.x);
+    if (t < 1) balonDurumu.kare = requestAnimationFrame(adim);
+  };
+  balonDurumu.kare = requestAnimationFrame(adim);
 }
 
 // ---------- Fotoğraf okuma işçisi ----------
