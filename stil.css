@@ -37,7 +37,7 @@ html, body {
   font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-body { padding-top: calc(56px + var(--ust)); padding-bottom: calc(142px + var(--alt)); }
+body { padding-top: calc(56px + var(--ust)); padding-bottom: calc(134px + var(--alt)); }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 /* etiketin içindeki kutular etiketin soluk rengini almasın */
@@ -201,45 +201,48 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 
 /* Durum çubuğu ve sekmeler */
 .durum {
-  position: fixed; left: 0; right: 0; bottom: calc(102px + var(--alt)); z-index: 9;
+  position: fixed; left: 0; right: 0; bottom: calc(94px + var(--alt)); z-index: 9;
   display: flex; justify-content: space-between; gap: 8px;
   padding: 6px 12px; font-size: 12px; background: var(--kart); border-top: 1px solid var(--cizgi); border-bottom: 1px solid var(--cizgi);
 }
 #durum-mesaj { color: var(--soluk); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #durum-ozet { font-weight: 700; white-space: nowrap; }
 
-/* Alt menü: yüzen koyu cam çubuk; seçili sekmenin simgesi çubuğun üstüne taşan yuvarlak balonda,
+/* Alt menü: yüzen şeffaf cam çubuk; seçili sekmenin simgesi çubuğun üstüne taşan yuvarlak balonda,
    çubuğun üst kenarı balonun çevresinde sıvı gibi kabarır (biçimi uygulama.js sekmeCubugunuCiz çizer) */
 .sekmeler {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
   padding: 0 12px calc(10px + var(--alt)); pointer-events: none;
 }
 .sekme-zemin {
-  position: absolute; left: 0; top: 0; width: 100%; height: 92px;
-  background: linear-gradient(180deg, rgba(58, 64, 74, .62), rgba(18, 22, 28, .72));
-  -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+  position: absolute; left: 0; top: 0; width: 100%; height: 84px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .28));
+  -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8);
 }
-.sekme-kenar { position: absolute; left: 0; top: 0; width: 100%; height: 92px; overflow: visible; pointer-events: none; }
-.sekme-kenar path { fill: none; stroke: rgba(255, 255, 255, .28); stroke-width: 1; }
-.sekme-dugmeler { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); height: 60px; margin-top: 32px; pointer-events: auto; }
+.sekme-kenar { position: absolute; left: 0; top: 0; width: 100%; height: 84px; overflow: visible; pointer-events: none; }
+/* açık zeminde de seçilsin diye iki kat kenar: dışta ince koyu gölge, içte parlak beyaz */
+.sekme-kenar path { fill: none; stroke-linejoin: round; }
+.sekme-kenar .dis { stroke: rgba(15, 23, 42, .14); stroke-width: 2.5; }
+.sekme-kenar .ic { stroke: rgba(255, 255, 255, .9); stroke-width: 1; }
+.sekme-dugmeler { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); height: 56px; margin-top: 28px; pointer-events: auto; }
 .sekmeler button {
-  position: relative; z-index: 1; background: none; border-radius: 0; min-height: 0; height: 60px; padding: 0;
-  flex-direction: column; gap: 3px; font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, .72);
+  position: relative; z-index: 1; background: none; border-radius: 0; min-height: 0; height: 56px; padding: 0;
+  flex-direction: column; gap: 2px; font-size: 10.5px; font-weight: 600; color: #334155;
 }
 .sekmeler button:active { background: none; }
-.sekmeler button svg { width: 22px; height: 22px; }
+.sekmeler button svg { width: 20px; height: 20px; }
 /* seçili sekmenin simgesi balonda gösterilir; yazısı çubukta, balonun altında kalır */
-.sekmeler button.secili { color: #fff; justify-content: flex-end; padding-bottom: 7px; }
+.sekmeler button.secili { color: var(--vurgu); font-weight: 700; justify-content: flex-end; padding-bottom: 6px; }
 .sekmeler button.secili svg { display: none; }
 .sekme-balon {
-  position: absolute; left: 0; top: 9px; z-index: 2; width: 50px; height: 50px; border-radius: 50%;
+  position: absolute; left: 0; top: 9px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; overflow: hidden;
   display: flex; align-items: center; justify-content: center; color: #fff; pointer-events: none; opacity: 0;
   background: radial-gradient(circle at 35% 28%, #6E9BFF, #2563EB 55%, #1A43B8);
-  border: 1px solid rgba(255, 255, 255, .5);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, .55), inset 0 1px 2px rgba(255, 255, 255, .7), inset 0 -3px 6px rgba(10, 30, 90, .35);
+  border: 1px solid rgba(255, 255, 255, .6);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, .45), inset 0 1px 2px rgba(255, 255, 255, .7), inset 0 -3px 6px rgba(10, 30, 90, .3);
   will-change: transform;
 }
-.sekme-balon svg { width: 24px; height: 24px; }
+.sekme-balon svg { width: 20px; height: 20px; }
 
 /* sekme geçişi: eski sayfa bir yana kayarken yenisi öbür yandan gelir (uygulama.js sekmeGecisi) */
 main { position: relative; overflow-x: clip; }

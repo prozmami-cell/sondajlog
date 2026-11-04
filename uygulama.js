@@ -778,7 +778,7 @@ function sekmeGecisi(eski, yeni, yon, ust, sol, genislik) {
 // ---------- Alt menü çubuğu ----------
 // Çubuk yüzen bir haptır; seçili sekmenin simgesi üstte yuvarlak balonda durur ve çubuğun üst kenarı
 // balonun çevresinde yumuşakça kabarır. Biçim, hap ile balon halkasının "yumuşak birleşimi" olarak çizilir.
-const CUBUK = { kenar: 12, ust: 32, alt: 92, balonY: 34, halka: 31, yumusaklik: 16 };
+const CUBUK = { kenar: 12, ust: 28, alt: 84, balonY: 30, halka: 26, yumusaklik: 14, balonYaricapi: 21 };
 const balonDurumu = { x: null, hedef: null, kare: null };
 
 function sekmeCubuguYolu(genislik, bx) {
@@ -813,7 +813,8 @@ function sekmeCubugunuCiz(bx) {
   zemin.style.clipPath = `path("${yol}")`;
   zemin.style.webkitClipPath = `path("${yol}")`;
   $("sekme-kenar-yolu").setAttribute("d", yol);
-  if (bx !== null) $("sekme-balon").style.transform = `translateX(${bx - 25}px)`;
+  $("sekme-kenar-dis").setAttribute("d", yol);
+  if (bx !== null) $("sekme-balon").style.transform = `translateX(${bx - CUBUK.balonYaricapi}px)`;
 }
 
 function camiTasi() {
@@ -821,14 +822,21 @@ function camiTasi() {
   if (!balon || !dugme) return;
   const nav = balon.parentElement.getBoundingClientRect(), kutu = dugme.getBoundingClientRect();
   const hedef = kutu.left + kutu.width / 2 - nav.left;
-  // balonda seçili sekmenin simgesi; değişince küçükten büyüyerek belirir
+  // balonda seçili sekmenin simgesi; değişince aşağıdan balonun içine doğru yükselir,
+  // bırakılan sekmenin simgesi de yukarıdan çubuktaki yerine iner
   const simge = dugme.querySelector("svg");
   if (balon.dataset.sekme !== aktifSekme) {
+    const onceki = balon.dataset.sekme && document.querySelector(`.sekmeler button[data-sekme="${balon.dataset.sekme}"] svg`);
     balon.innerHTML = simge.outerHTML;
     balon.dataset.sekme = aktifSekme;
     if (balonDurumu.x !== null && !hareketAzaltilmis()) {
-      balon.firstElementChild.animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }],
-        { duration: 320, easing: "cubic-bezier(.3, 1.5, .5, 1)" });
+      balon.firstElementChild.animate([
+        { transform: "translateY(30px) scale(.7)", opacity: 0 },
+        { transform: "translateY(-3px) scale(1.05)", opacity: 1, offset: 0.75 },
+        { transform: "translateY(0) scale(1)", opacity: 1 },
+      ], { duration: 420, delay: 90, easing: "cubic-bezier(.25, .8, .3, 1)", fill: "backwards" });
+      onceki?.animate([{ transform: "translateY(-14px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }],
+        { duration: 320, easing: "cubic-bezier(.25, .8, .3, 1)" });
     }
   }
   balon.style.opacity = "1";
