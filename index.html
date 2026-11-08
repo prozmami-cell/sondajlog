@@ -164,6 +164,36 @@
     <div class="tablo" id="tablo-tcr"></div>
   </section>
 
+  <!-- NUMUNE LİSTESİ -->
+  <section class="sekme" id="sekme-numune" hidden>
+    <div class="kart">
+      <div class="kart-baslik">Numune listesi <span class="ipucu">SPT ve UD'ler manevralardan otomatik gelir</span></div>
+      <label>YASS seviyesi
+        <span class="yass-satiri">
+          <input id="numune-yass" autocomplete="off" placeholder="ör. Rastlanmadı ya da 3,20 m">
+          <button class="kucuk" id="numune-rastlanmadi">Rastlanmadı</button>
+        </span>
+      </label>
+    </div>
+    <div class="kart">
+      <div class="kart-baslik">Karot numunesi ekle (K)</div>
+      <div class="iki">
+        <label>Başlangıç (m)<input id="numune-baslangic" inputmode="decimal" autocomplete="off"></label>
+        <label>Bitiş (m)<input id="numune-bitis" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-numune-ekle">Karot Ekle</button>
+      </div>
+    </div>
+    <div class="liste-baslik">
+      <span>Liste</span>
+      <span>
+        <button class="kucuk" data-kopyala="numune">Kopyala</button>
+        <button class="kucuk" id="dugme-numune-paylas">Paylaş</button>
+      </span>
+    </div>
+    <div class="numune-onizleme" id="numune-onizleme"></div>
+  </section>
   <!-- LOG TANIMLAMA -->
   <section class="sekme" id="sekme-tanim" hidden>
     <button class="ana genis birim-ekle" id="dugme-birim-ekle"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>YENİ BİRİM EKLE</button>
@@ -203,6 +233,7 @@
   <button data-sekme="manevra" class="secili"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 9.3h14M5 14.6h14M5 20h14"/><path d="M12 4v16" stroke-dasharray="2 2"/></svg>Manevra</button>
   <button data-sekme="spt"><svg viewBox="0 0 24 24"><path d="M7 3h10v5H7zM12 8v13M9 21h6"/></svg>SPT</button>
   <button data-sekme="tcr"><svg viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>TCR</button>
+  <button data-sekme="numune"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>Numune</button>
   <button data-sekme="tanim"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>Tanım</button>
   <button data-sekme="foto"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotoğraf</button>
   </div>

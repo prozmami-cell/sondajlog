@@ -40,7 +40,7 @@ function tarihiBicimle(yazi) {
 }
 
 function bosVeri() {
-  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [] };
+  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [], numune_listesi: { yass: "", karotlar: [] } };
 }
 
 function depoOku(anahtar, varsayilan) {
@@ -81,7 +81,7 @@ function kaydet() {
 
 function kaydetIsaretiniCiz() {
   const kayit = kuyular[aktifKimlik];
-  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
+  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
   $("kaydet-isareti").hidden = !bekleyen;
 }
 
@@ -92,6 +92,7 @@ function kuyuAc(kimlik) {
   veri.spt_degerleri = veri.spt_degerleri || {};
   veri.tcr_sonuclari = veri.tcr_sonuclari || [];
   veri.birimler = veri.birimler || [];
+  veri.numune_listesi = numuneListesiniDuzenle(veri.numune_listesi);
   oneriyiHesapla();
   depoYaz(DEPO_AKTIF, aktifKimlik);
   hepsiniCiz();
@@ -397,8 +398,109 @@ function hepsiniCiz() {
   manevraCiz();
   sptCiz();
   tcrCiz();
+  numuneCiz();
   birimleriCiz();
   ozetiCiz();
+}
+
+// ---------- Numune listesi ----------
+// SPT ve UD'ler manevra listesinden gelir; karot numuneleri (K) elle girilir. Biçim:
+// "SK-1 NUMUNE LİSTESİ", boş satır, "27.08.2026    YASS: Rastlanmadı", boş satır, "4,50-4,95 - SPT-3"...
+function numuneListesiniDuzenle(liste) {
+  const sonuc = { yass: "", karotlar: [], ...(liste || {}) };
+  sonuc.yass = String(sonuc.yass || "");
+  sonuc.karotlar = (Array.isArray(sonuc.karotlar) ? sonuc.karotlar : [])
+    .filter((k) => Array.isArray(k) && k.length >= 2).map((k) => [String(k[0]), String(k[1])]);
+  return sonuc;
+}
+
+// derinliğe göre sıralı [başlangıç, bitiş, ad, karot sırası (SPT/UD için -1)]
+function numuneSatirlari() {
+  const satirlar = veri.manevralar.filter((m) => m[2].startsWith("SPT") || m[2].startsWith("UD")).map(([bas, bit, tip]) => [bas, bit, tip, -1]);
+  veri.numune_listesi.karotlar.forEach(([bas, bit], i) => satirlar.push([bas, bit, "K", i]));
+  return satirlar.sort((a, b) => sayiya(a[0]) - sayiya(b[0]) || sayiya(a[1]) - sayiya(b[1]));
+}
+
+function numuneBasligi() {
+  const kuyu = (veri.kuyu_bilgileri.kuyu || "").trim().toLocaleUpperCase("tr-TR");
+  return (kuyu ? kuyu + " " : "") + "NUMUNE LİSTESİ";
+}
+
+function numuneTarihSatiri() {
+  // bitiş tarihi (yoksa başlama tarihi), noktalı: 27.08.2026
+  const bilgi = veri.kuyu_bilgileri;
+  const tarih = (bilgi.bitis_tarihi || bilgi.baslama_tarihi || "").trim().replace(/\//g, ".");
+  return [tarih, "YASS: " + veri.numune_listesi.yass.trim()].filter(Boolean).join("    ").trim();
+}
+
+function numuneListesiMetni() {
+  return [numuneBasligi(), "", numuneTarihSatiri(), "", ...numuneSatirlari().map(([bas, bit, ad]) => `${bas}-${bit} - ${ad}`)].join("\n");
+}
+
+function numuneCiz(alanlariDa = true) {
+  if (alanlariDa) $("numune-yass").value = veri.numune_listesi.yass;
+  const kap = $("numune-onizleme");
+  kap.textContent = "";
+  const yeni = (sinif, metin) => kap.appendChild(Object.assign(document.createElement("div"), { className: sinif, textContent: metin }));
+  yeni("numune-baslik", numuneBasligi());
+  yeni("numune-tarih", numuneTarihSatiri());
+  const satirlar = numuneSatirlari();
+  if (!satirlar.length) yeni("bos-liste", "Henüz numune yok");
+  for (const [bas, bit, ad, karot] of satirlar) {
+    const satir = yeni("numune-satir", "");
+    satir.appendChild(Object.assign(document.createElement("span"), { textContent: `${bas}-${bit} - ${ad}` }));
+    if (karot < 0) {
+      satir.appendChild(Object.assign(document.createElement("span"), { className: "numune-kaynak", textContent: "manevralardan" }));
+      continue;
+    }
+    const sil = Object.assign(document.createElement("button"), { className: "numune-sil", textContent: "×" });
+    sil.setAttribute("aria-label", `${bas}-${bit} karot numunesini sil`);
+    sil.onclick = () => numuneKarotSil(karot);
+    satir.appendChild(sil);
+  }
+}
+
+function numuneKarotEkle() {
+  const bas = alanOku("numune-baslangic", "Karot numunesi başlangıcı");
+  if (bas === null) return;
+  const bit = alanOku("numune-bitis", "Karot numunesi bitişi");
+  if (bit === null) return;
+  if (bas < 0) return hataGoster("Başlangıç negatif olamaz.", "numune-baslangic");
+  if (r2(bit - bas) <= 0) return hataGoster("Bitiş, başlangıçtan büyük olmalıdır.", "numune-bitis");
+  const yeni = [yaziya(bas), yaziya(bit)];
+  if (veri.numune_listesi.karotlar.some((k) => k[0] === yeni[0] && k[1] === yeni[1])) {
+    return hataGoster(`${yeni[0]}-${yeni[1]} karot numunesi zaten listede.`, "numune-baslangic");
+  }
+  veri.numune_listesi.karotlar.push(yeni);
+  kaydet();
+  numuneCiz(false);
+  $("numune-baslangic").value = "";
+  $("numune-bitis").value = "";
+  $("numune-baslangic").focus();
+  durumYaz(`Karot numunesi eklendi: ${yeni[0]}-${yeni[1]} m`);
+}
+
+async function numuneKarotSil(indeks) {
+  const [bas, bit] = veri.numune_listesi.karotlar[indeks];
+  const cevap = await sor("Karot numunesini sil", `${bas}-${bit} - K listeden silinsin mi?`, [["Sil", true, true], ["Vazgeç", false]]);
+  if (!cevap) return;
+  veri.numune_listesi.karotlar.splice(indeks, 1);
+  kaydet();
+  numuneCiz(false);
+  durumYaz(`Silindi: ${bas}-${bit} - K`);
+}
+
+async function numuneListesiniPaylas() {
+  const metin = numuneListesiMetni();
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: metin });
+    } catch (hata) {
+      if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+    }
+    return;
+  }
+  kopyala("numune");
 }
 
 // ---------- Log tanımlama (birim notları) ----------
@@ -638,6 +740,7 @@ async function kopyala(tur) {
     "rqd": () => veri.tcr_sonuclari.map((s) => String(s[3])),
     // birimler log biçiminde, aralarında boş satır
     "birim": () => [veri.birimler.map(birimLogu).filter(Boolean).join("\n\n")],
+    "numune": () => [numuneListesiMetni()],
   };
   try {
     await navigator.clipboard.writeText(metinler[tur]().join("\n"));
@@ -685,6 +788,7 @@ async function dosyadanAc(dosya) {
     if (!Array.isArray(okunan.manevralar)) throw new Error("manevra listesi yok");
     const yeni = bosVeri();
     yeni.kuyu_bilgileri = kuyuBilgileriniDuzenle(okunan.kuyu_bilgileri);
+    yeni.numune_listesi = numuneListesiniDuzenle(okunan.numune_listesi);
     for (const m of okunan.manevralar) {
       const bas = sayiya(m[0]), bit = sayiya(m[1]);
       if (bas === null || bit === null) throw new Error("hatalı derinlik: " + m.join(" "));
@@ -750,7 +854,7 @@ function katmaniKapat(kimlik) {
 }
 
 // ---------- Sekmeler ----------
-const SEKME_SIRASI = ["manevra", "spt", "tcr", "tanim", "foto"];
+const SEKME_SIRASI = ["manevra", "spt", "tcr", "numune", "tanim", "foto"];
 let aktifSekme = "manevra";
 let sekmeGecisiniBitir = null;
 const hareketAzaltilmis = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -1222,9 +1326,9 @@ async function aktar() {
   }
   if (!sonaEkle) {
     // manevralar yeniden yazılır; kuyu bilgileri ve log tanımları korunur
-    const { kuyu_bilgileri, birimler } = veri;
+    const { kuyu_bilgileri, birimler, numune_listesi } = veri;
     veri = bosVeri();
-    Object.assign(veri, { kuyu_bilgileri, birimler });
+    Object.assign(veri, { kuyu_bilgileri, birimler, numune_listesi });
   }
   for (const satir of satirlar) {
     const numuneTipi = manevrayiIsle(satir.baslangic, satir.bitis, satir.tip);
@@ -2363,6 +2467,7 @@ function baglantilariKur() {
       if (anahtar.endsWith("_tarihi")) olay.target.value = tarihiBicimle(olay.target.value);
       veri.kuyu_bilgileri[anahtar] = olay.target.value;
       kaydet();
+      numuneCiz(false);
       if (anahtar === "kuyu") {
         $("ust-kuyu").textContent = olay.target.value || "Yeni kuyu";
         document.title = olay.target.value ? `Logvera — ${olay.target.value}` : "Logvera";
@@ -2381,6 +2486,12 @@ function baglantilariKur() {
   $("dugme-tcr-hesapla").onclick = tcrHesapla;
   $("dugme-tcr-sil").onclick = tcrSonuSil;
   $("dugme-birim-ekle").onclick = birimEkle;
+  $("numune-yass").addEventListener("input", (olay) => { veri.numune_listesi.yass = olay.target.value; kaydet(); numuneCiz(false); });
+  $("numune-rastlanmadi").onclick = () => { veri.numune_listesi.yass = "Rastlanmadı"; kaydet(); numuneCiz(); };
+  $("dugme-numune-ekle").onclick = numuneKarotEkle;
+  $("dugme-numune-paylas").onclick = numuneListesiniPaylas;
+  $("numune-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("numune-bitis").focus(); });
+  $("numune-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") numuneKarotEkle(); });
   ["tcr-tcr", "tcr-scr", "tcr-rqd"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
     if (olay.key !== "Enter") return;
     i < 2 ? $(hepsi[i + 1]).focus() : tcrHesapla();
