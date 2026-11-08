@@ -40,7 +40,7 @@ function tarihiBicimle(yazi) {
 }
 
 function bosVeri() {
-  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [], numune_listesi: { yass: "", karotlar: [] } };
+  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [], ud_listesi: [], numune_listesi: { yass: "", karotlar: [] } };
 }
 
 function depoOku(anahtar, varsayilan) {
@@ -81,7 +81,7 @@ function kaydet() {
 
 function kaydetIsaretiniCiz() {
   const kayit = kuyular[aktifKimlik];
-  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
+  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length + (kayit.veri.ud_listesi || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
   $("kaydet-isareti").hidden = !bekleyen;
 }
 
@@ -93,6 +93,7 @@ function kuyuAc(kimlik) {
   veri.tcr_sonuclari = veri.tcr_sonuclari || [];
   veri.birimler = veri.birimler || [];
   veri.numune_listesi = numuneListesiniDuzenle(veri.numune_listesi);
+  veri.ud_listesi = udListesiniDuzenle(veri.ud_listesi);
   oneriyiHesapla();
   depoYaz(DEPO_AKTIF, aktifKimlik);
   hepsiniCiz();
@@ -398,9 +399,117 @@ function hepsiniCiz() {
   manevraCiz();
   sptCiz();
   tcrCiz();
+  udCiz();
   numuneCiz();
   birimleriCiz();
   ozetiCiz();
+}
+
+// ---------- UD numuneleri (elle) ----------
+// Manevralardaki UD'ler (0,50 m) kendiliğinden gelir. Bunlara ek UD'ler elle girilir; elle girilen bir UD manevradaki
+// bir UD ile aynı aralıktaysa onun yerine geçer (böylece adı da değiştirilebilir). Kayıt: ud_listesi [[bas, bit, ad]].
+let udSecili = null; // { bas, bit, indeks } indeks: ud_listesi sırası, manevradan gelen için -1
+
+const derinlikSirasi = (a, b) => sayiya(a[0]) - sayiya(b[0]) || sayiya(a[1]) - sayiya(b[1]);
+
+function udListesiniDuzenle(liste) {
+  return (Array.isArray(liste) ? liste : []).filter((u) => Array.isArray(u) && u.length >= 3).map((u) => [0, 1, 2].map((i) => String(u[i])));
+}
+
+function manevraUdleri() {
+  const elle = new Set(veri.ud_listesi.map(([bas, bit]) => bas + "|" + bit));
+  return veri.manevralar.filter((m) => m[2].startsWith("UD") && !elle.has(m[0] + "|" + m[1]));
+}
+
+// derinliğe göre sıralı [başlangıç, bitiş, ad, ud_listesi sırası (manevradan gelen için -1)]
+function udSatirlari() {
+  return [...manevraUdleri().map(([bas, bit, ad]) => [bas, bit, ad, -1]), ...veri.ud_listesi.map(([bas, bit, ad], i) => [bas, bit, ad, i])]
+    .sort(derinlikSirasi);
+}
+
+function udOnerilenAd() {
+  const numaralar = [...veri.manevralar.map((m) => m[2]), ...veri.ud_listesi.map((u) => u[2])]
+    .map((ad) => /^UD-(\d+)$/.exec(ad)).filter(Boolean).map((e) => Number(e[1]));
+  return "UD-" + (Math.max(0, ...numaralar) + 1);
+}
+
+function udCiz() {
+  const satirlar = udSatirlari();
+  if (udSecili && !satirlar.some(([bas, bit, , i]) => bas === udSecili.bas && bit === udSecili.bit && i === udSecili.indeks)) udSecili = null;
+  const elemanlar = satirlariCiz($("tablo-ud"), ["Aralık", "Adı", "Kaynak"],
+    satirlar.map(([bas, bit, ad, i]) => ({
+      hucreler: [`${bas}-${bit}`, ad, i < 0 ? "manevra" : "elle"],
+      sinif: (i < 0 ? "karot" : "ud") + (udSecili && udSecili.bas === bas && udSecili.bit === bit && udSecili.indeks === i ? " secili" : ""),
+    })), "Henüz UD yok");
+  elemanlar.forEach((eleman, k) => eleman.addEventListener("click", () => udSec(satirlar[k])));
+  $("dugme-ud-duzenle").disabled = !udSecili;
+  $("dugme-ud-sil").disabled = !udSecili || udSecili.indeks < 0;
+  $("dugme-ud-ekle").classList.toggle("ana", !udSecili);
+  $("dugme-ud-duzenle").classList.toggle("ana", !!udSecili);
+  $("ud-ad").placeholder = udOnerilenAd();
+}
+
+function udSec([bas, bit, ad, indeks]) {
+  if (udSecili && udSecili.bas === bas && udSecili.bit === bit && udSecili.indeks === indeks) return udKutulariniTemizle();
+  udSecili = { bas, bit, indeks };
+  $("ud-baslangic").value = bas;
+  $("ud-bitis").value = bit;
+  $("ud-ad").value = ad;
+  udCiz();
+  $("ud-baslangic").scrollIntoView?.({ block: "center", behavior: "smooth" });
+}
+
+function udKutulariniTemizle() {
+  udSecili = null;
+  for (const k of ["ud-baslangic", "ud-bitis", "ud-ad"]) $(k).value = "";
+  udCiz();
+}
+
+function udKutulariniOku(haric = -1) {
+  const bas = alanOku("ud-baslangic", "UD başlangıcı");
+  if (bas === null) return null;
+  const bit = alanOku("ud-bitis", "UD bitişi");
+  if (bit === null) return null;
+  if (bas < 0) return hataGoster("UD başlangıcı negatif olamaz.", "ud-baslangic"), null;
+  if (r2(bit - bas) <= 0) return hataGoster("UD bitişi, başlangıcından büyük olmalıdır.", "ud-bitis"), null;
+  const yeni = [yaziya(bas), yaziya(bit), $("ud-ad").value.trim() || udOnerilenAd()];
+  if (veri.ud_listesi.some((u, i) => i !== haric && u[0] === yeni[0] && u[1] === yeni[1])) {
+    return hataGoster(`${yeni[0]}-${yeni[1]} aralığında elle girilmiş bir UD zaten var. Onu seçip düzenleyin.`, "ud-baslangic"), null;
+  }
+  return yeni;
+}
+
+function udDegisti(mesaj) {
+  kaydet();
+  udKutulariniTemizle();
+  numuneCiz(false);
+  durumYaz(mesaj);
+}
+
+function udEkle() {
+  const yeni = udKutulariniOku();
+  if (!yeni) return;
+  veri.ud_listesi.push(yeni);
+  udDegisti(`UD eklendi: ${yeni[0]}-${yeni[1]} m → ${yeni[2]}`);
+}
+
+function udDuzenle() {
+  if (!udSecili) return;
+  const yeni = udKutulariniOku(udSecili.indeks);
+  if (!yeni) return;
+  // manevradan gelen UD: aynı aralıkta elle girilen kayıt onun yerine geçer
+  if (udSecili.indeks < 0) veri.ud_listesi.push(yeni);
+  else veri.ud_listesi[udSecili.indeks] = yeni;
+  udDegisti(`UD düzenlendi: ${yeni[0]}-${yeni[1]} m → ${yeni[2]}`);
+}
+
+async function udSil() {
+  if (!udSecili || udSecili.indeks < 0) return;
+  const [bas, bit, ad] = veri.ud_listesi[udSecili.indeks];
+  const cevap = await sor("UD'yi sil", `${bas}-${bit} m → ${ad} silinsin mi?`, [["Sil", true, true], ["Vazgeç", false]]);
+  if (!cevap) return;
+  veri.ud_listesi.splice(udSecili.indeks, 1);
+  udDegisti(`UD silindi: ${bas}-${bit} m → ${ad}`);
 }
 
 // ---------- Numune listesi ----------
@@ -414,11 +523,15 @@ function numuneListesiniDuzenle(liste) {
   return sonuc;
 }
 
-// derinliğe göre sıralı [başlangıç, bitiş, ad, karot sırası (SPT/UD için -1)]
+// derinliğe göre sıralı [başlangıç, bitiş, ad, karot sırası (karot değilse -1), kaynak]
 function numuneSatirlari() {
-  const satirlar = veri.manevralar.filter((m) => m[2].startsWith("SPT") || m[2].startsWith("UD")).map(([bas, bit, tip]) => [bas, bit, tip, -1]);
-  veri.numune_listesi.karotlar.forEach(([bas, bit], i) => satirlar.push([bas, bit, "K", i]));
-  return satirlar.sort((a, b) => sayiya(a[0]) - sayiya(b[0]) || sayiya(a[1]) - sayiya(b[1]));
+  const satirlar = [
+    ...veri.manevralar.filter((m) => m[2].startsWith("SPT")).map(([bas, bit, tip]) => [bas, bit, tip, -1, "manevralardan"]),
+    ...manevraUdleri().map(([bas, bit, ad]) => [bas, bit, ad, -1, "manevralardan"]),
+    ...veri.ud_listesi.map(([bas, bit, ad]) => [bas, bit, ad, -1, "elle (UD)"]),
+  ];
+  veri.numune_listesi.karotlar.forEach(([bas, bit], i) => satirlar.push([bas, bit, "K", i, "elle"]));
+  return satirlar.sort(derinlikSirasi);
 }
 
 function numuneBasligi() {
@@ -446,11 +559,11 @@ function numuneCiz(alanlariDa = true) {
   yeni("numune-tarih", numuneTarihSatiri());
   const satirlar = numuneSatirlari();
   if (!satirlar.length) yeni("bos-liste", "Henüz numune yok");
-  for (const [bas, bit, ad, karot] of satirlar) {
+  for (const [bas, bit, ad, karot, kaynak] of satirlar) {
     const satir = yeni("numune-satir", "");
     satir.appendChild(Object.assign(document.createElement("span"), { textContent: `${bas}-${bit} - ${ad}` }));
     if (karot < 0) {
-      satir.appendChild(Object.assign(document.createElement("span"), { className: "numune-kaynak", textContent: "manevralardan" }));
+      satir.appendChild(Object.assign(document.createElement("span"), { className: "numune-kaynak", textContent: kaynak }));
       continue;
     }
     const sil = Object.assign(document.createElement("button"), { className: "numune-sil", textContent: "×" });
@@ -789,6 +902,7 @@ async function dosyadanAc(dosya) {
     const yeni = bosVeri();
     yeni.kuyu_bilgileri = kuyuBilgileriniDuzenle(okunan.kuyu_bilgileri);
     yeni.numune_listesi = numuneListesiniDuzenle(okunan.numune_listesi);
+    yeni.ud_listesi = udListesiniDuzenle(okunan.ud_listesi);
     for (const m of okunan.manevralar) {
       const bas = sayiya(m[0]), bit = sayiya(m[1]);
       if (bas === null || bit === null) throw new Error("hatalı derinlik: " + m.join(" "));
@@ -1326,9 +1440,9 @@ async function aktar() {
   }
   if (!sonaEkle) {
     // manevralar yeniden yazılır; kuyu bilgileri ve log tanımları korunur
-    const { kuyu_bilgileri, birimler, numune_listesi } = veri;
+    const { kuyu_bilgileri, birimler, numune_listesi, ud_listesi } = veri;
     veri = bosVeri();
-    Object.assign(veri, { kuyu_bilgileri, birimler, numune_listesi });
+    Object.assign(veri, { kuyu_bilgileri, birimler, numune_listesi, ud_listesi });
   }
   for (const satir of satirlar) {
     const numuneTipi = manevrayiIsle(satir.baslangic, satir.bitis, satir.tip);
@@ -2489,6 +2603,12 @@ function baglantilariKur() {
   $("numune-yass").addEventListener("input", (olay) => { veri.numune_listesi.yass = olay.target.value; kaydet(); numuneCiz(false); });
   $("numune-rastlanmadi").onclick = () => { veri.numune_listesi.yass = "Rastlanmadı"; kaydet(); numuneCiz(); };
   $("dugme-numune-ekle").onclick = numuneKarotEkle;
+  $("dugme-ud-ekle").onclick = udEkle;
+  $("dugme-ud-duzenle").onclick = udDuzenle;
+  $("dugme-ud-sil").onclick = udSil;
+  $("ud-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("ud-bitis").focus(); });
+  $("ud-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("ud-ad").focus(); });
+  $("ud-ad").addEventListener("keydown", (olay) => { if (olay.key === "Enter") (udSecili ? udDuzenle : udEkle)(); });
   $("dugme-numune-paylas").onclick = numuneListesiniPaylas;
   $("numune-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("numune-bitis").focus(); });
   $("numune-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") numuneKarotEkle(); });

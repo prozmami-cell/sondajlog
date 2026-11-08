@@ -135,6 +135,21 @@
       <button class="kucuk" data-kopyala="spt-grafik">Kopyala</button>
     </div>
     <div class="tablo" id="tablo-spt-grafik"></div>
+    <div class="kart ud-karti">
+      <div class="kart-baslik">UD numuneleri <span class="ipucu">Manevralardaki UD'ler (0,50 m) kendiliğinden gelir. Aynı aralığı elle girerseniz onun yerine geçer.</span></div>
+      <div class="uc">
+        <label>Başlangıç (m)<input id="ud-baslangic" inputmode="decimal" autocomplete="off"></label>
+        <label>Bitiş (m)<input id="ud-bitis" inputmode="decimal" autocomplete="off"></label>
+        <label>Adı<input id="ud-ad" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-ud-ekle">Ekle</button>
+        <button id="dugme-ud-duzenle" disabled>Düzenle</button>
+        <button id="dugme-ud-sil" disabled>Sil</button>
+      </div>
+    </div>
+    <div class="liste-baslik"><span>UD listesi <span class="ipucu">düzenlemek için satıra dokunun</span></span></div>
+    <div class="tablo" id="tablo-ud"></div>
   </section>
 
   <!-- TCR -->
