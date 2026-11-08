@@ -23,8 +23,24 @@ function pyRound(sayi) {
 }
 
 // ---------- Kayıt ----------
+const KUYU_ALANLARI = ["proje", "kuyu", "baslama_tarihi", "bitis_tarihi"];
+
+// eski kayıtlardaki tek "tarih" alanı başlama tarihine taşınır
+function kuyuBilgileriniDuzenle(bilgiler) {
+  const sonuc = Object.assign({ proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, bilgiler || {});
+  if (sonuc.tarih && !sonuc.baslama_tarihi) sonuc.baslama_tarihi = sonuc.tarih;
+  delete sonuc.tarih;
+  return sonuc;
+}
+
+// yazılan rakamlar gg/aa/yyyy biçimine çevrilir; eğik çizgiler kendiliğinden eklenir
+function tarihiBicimle(yazi) {
+  const rakamlar = yazi.replace(/\D/g, "").slice(0, 8);
+  return [rakamlar.slice(0, 2), rakamlar.slice(2, 4), rakamlar.slice(4)].filter(Boolean).join("/");
+}
+
 function bosVeri() {
-  return { kuyu_bilgileri: { proje: "", kuyu: "", tarih: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [] };
+  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [] };
 }
 
 function depoOku(anahtar, varsayilan) {
@@ -72,7 +88,7 @@ function kaydetIsaretiniCiz() {
 function kuyuAc(kimlik) {
   aktifKimlik = kimlik;
   veri = JSON.parse(JSON.stringify(kuyular[kimlik].veri));
-  veri.kuyu_bilgileri = Object.assign({ proje: "", kuyu: "", tarih: "" }, veri.kuyu_bilgileri);
+  veri.kuyu_bilgileri = kuyuBilgileriniDuzenle(veri.kuyu_bilgileri);
   veri.spt_degerleri = veri.spt_degerleri || {};
   veri.tcr_sonuclari = veri.tcr_sonuclari || [];
   veri.birimler = veri.birimler || [];
@@ -360,7 +376,7 @@ function tcrCiz(secilecek) {
 }
 
 function kuyuBilgileriniCiz() {
-  for (const anahtar of ["proje", "kuyu", "tarih"]) $("kuyu-" + anahtar).value = veri.kuyu_bilgileri[anahtar] || "";
+  for (const anahtar of KUYU_ALANLARI) $("kuyu-" + anahtar).value = veri.kuyu_bilgileri[anahtar] || "";
   $("kuyu-karti").open = !veri.manevralar.length;
   $("ust-kuyu").textContent = veri.kuyu_bilgileri.kuyu || "Yeni kuyu";
   document.title = veri.kuyu_bilgileri.kuyu ? `Logvera — ${veri.kuyu_bilgileri.kuyu}` : "Logvera";
@@ -668,7 +684,7 @@ async function dosyadanAc(dosya) {
     const okunan = JSON.parse(await dosya.text());
     if (!Array.isArray(okunan.manevralar)) throw new Error("manevra listesi yok");
     const yeni = bosVeri();
-    Object.assign(yeni.kuyu_bilgileri, okunan.kuyu_bilgileri || {});
+    yeni.kuyu_bilgileri = kuyuBilgileriniDuzenle(okunan.kuyu_bilgileri);
     for (const m of okunan.manevralar) {
       const bas = sayiya(m[0]), bit = sayiya(m[1]);
       if (bas === null || bit === null) throw new Error("hatalı derinlik: " + m.join(" "));
@@ -2284,8 +2300,9 @@ function baglantilariKur() {
     $(alan).addEventListener("input", () => { oneri = { baslangic: $("giris-baslangic").value, bitis: $("giris-bitis").value }; });
   }
 
-  for (const anahtar of ["proje", "kuyu", "tarih"]) {
+  for (const anahtar of KUYU_ALANLARI) {
     $("kuyu-" + anahtar).addEventListener("input", (olay) => {
+      if (anahtar.endsWith("_tarihi")) olay.target.value = tarihiBicimle(olay.target.value);
       veri.kuyu_bilgileri[anahtar] = olay.target.value;
       kaydet();
       if (anahtar === "kuyu") {
