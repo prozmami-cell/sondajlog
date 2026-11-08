@@ -603,6 +603,58 @@ async function numuneKarotSil(indeks) {
   durumYaz(`Silindi: ${bas}-${bit} - K`);
 }
 
+// Numune listesinin telefon ekran görüntüsü gibi siyah zeminli JPEG'i (masaüstündeki numune_gorseli ile aynı ölçüler)
+function numuneGorseli() {
+  const GENISLIK = 1290, KENAR = 85, YAZI = "-apple-system, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
+  const tuval = document.createElement("canvas"), b = tuval.getContext("2d");
+  const baslikTipi = `700 84px ${YAZI}`, yaziTipi = `400 50px ${YAZI}`;
+  // başlık sözcük sözcük satırlara bölünür
+  b.font = baslikTipi;
+  const basliklar = [];
+  let satir = "";
+  for (const sozcuk of numuneBasligi().split(/\s+/).filter(Boolean)) {
+    const aday = satir ? satir + " " + sozcuk : sozcuk;
+    if (satir && b.measureText(aday).width > GENISLIK - 2 * KENAR) { basliklar.push(satir); satir = sozcuk; } else satir = aday;
+  }
+  basliklar.push(satir);
+  const numuneler = numuneSatirlari().map(([bas, bit, ad]) => `${bas}-${bit} - ${ad}`);
+  tuval.width = GENISLIK;
+  tuval.height = 50 + 108 * basliklar.length + 92 + 60 + 95 + 78 * numuneler.length + 110;
+  b.fillStyle = "#000";
+  b.fillRect(0, 0, tuval.width, tuval.height);
+  b.fillStyle = "#E8E8E8";
+  b.textBaseline = "top";
+  let y = 62;
+  b.font = baslikTipi;
+  for (const s of basliklar) { b.fillText(s, KENAR, y); y += 108; }
+  y += 92;
+  b.font = yaziTipi;
+  b.fillText(numuneTarihSatiri(), KENAR, y);
+  y += 60 + 95;
+  for (const s of numuneler) { b.fillText(s, KENAR, y); y += 78; }
+  return new Promise((tamam) => tuval.toBlob(tamam, "image/jpeg", 0.92));
+}
+
+async function numuneJpegIndir() {
+  const kuyu = (veri.kuyu_bilgileri.kuyu || "").trim();
+  const ad = ((kuyu ? kuyu + " " : "") + "Numune Listesi.jpg").replace(/[\\/:*?"<>|]/g, "_");
+  const dosya = new File([await numuneGorseli()], ad, { type: "image/jpeg" });
+  // iPhone'da paylaşım sayfası açılır: "Resmi Kaydet" ile Fotoğraflar'a, ya da WhatsApp vb.
+  if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
+    try {
+      await navigator.share({ files: [dosya] });
+      durumYaz("Numune listesi görseli hazır: " + ad);
+    } catch (hata) {
+      if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+    }
+    return;
+  }
+  const baglanti = Object.assign(document.createElement("a"), { href: URL.createObjectURL(dosya), download: ad });
+  baglanti.click();
+  setTimeout(() => URL.revokeObjectURL(baglanti.href), 5000);
+  durumYaz("İndirildi: " + ad);
+}
+
 async function numuneListesiniPaylas() {
   const metin = numuneListesiMetni();
   if (navigator.share) {
@@ -2610,6 +2662,7 @@ function baglantilariKur() {
   $("ud-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("ud-ad").focus(); });
   $("ud-ad").addEventListener("keydown", (olay) => { if (olay.key === "Enter") (udSecili ? udDuzenle : udEkle)(); });
   $("dugme-numune-paylas").onclick = numuneListesiniPaylas;
+  $("dugme-numune-jpeg").onclick = numuneJpegIndir;
   $("numune-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("numune-bitis").focus(); });
   $("numune-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") numuneKarotEkle(); });
   ["tcr-tcr", "tcr-scr", "tcr-rqd"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
