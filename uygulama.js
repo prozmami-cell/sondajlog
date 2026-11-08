@@ -1393,8 +1393,8 @@ const NOKTA_ARALIGI = 10, RQD_ESIGI = 10, SERIT_PX = 10;
 const KAROT_IPUCLARI = {
   nokta: "Karotun ortasına, bölmedeki 10 cm çizgilerinin hizasına, derinlik yönünde sırayla dokunun. Alt sıraya geçince yeni sıra kendiliğinden başlar. Noktaya dokun: sil • sürükle: taşı • iki parmak: yakınlaştır.",
   sinir: "Önce manevranın başladığı, sonra bittiği yere dokunun; bitiş alt sırada olabilir. İşarete dokun: sil • sürükle: taşı.",
-  kirik: "Alttaki şeritte: dokun → kırık ekle • kırığa dokun → sil • sürükle → taşı.",
-  tur: "Alttaki şeritte parçaya dokunun: sağlam (renkli) ↔ ezik/ufalanmış (renksiz, SCR ve RQD'ye sayılmaz).",
+  kirik: "Fotoğrafta karotun üzerine dokun → kırık ekle • kırığa dokun → sil • kırığı sürükle → taşı. İki parmakla yakınlaştırın.",
+  tur: "Fotoğrafta parçaya dokunun: sağlam (renkli) ↔ ezik/ufalanmış (renksiz, SCR ve RQD'ye sayılmaz).",
 };
 const karot = {
   tuval: null, surum: 0, gonderilen: -1, merkez: [0, 0], olcek: 1,
@@ -1457,6 +1457,7 @@ function karotModSec(mod) {
   karot.mod = mod;
   for (const dugme of document.querySelectorAll("#karot-modlar button")) dugme.classList.toggle("secili", dugme.dataset.mod === mod);
   $("karot-ipucu").textContent = karot.kirpma ? "Sandığın çevresine parmağınızla bir dikdörtgen çizin; fotoğraf bu alana kırpılır." : KAROT_IPUCLARI[mod];
+  if (karot.tuval) karotFotoCiz();  // parçalar yalnızca kırık/tür adımında fotoğrafta gösterilir
 }
 
 // ---- nokta dizisi (cetvel): karot_olcum.py'deki cetvelde_konum ve cetvel_noktasi ile aynı ----
@@ -1555,8 +1556,9 @@ function karotFotoCiz() {
   const [x0, y0] = karotResme(0, 0), o = karot.olcek;
   b.imageSmoothingQuality = "high";
   b.drawImage(foto, -x0 * o, -y0 * o, foto.width * o, foto.height * o);
+  karotParcalariCiz(b);
   karot.seritler.forEach((serit, i) => {
-    for (const kesim of karot.parcalar[i]?.kesimler || []) karotCaprazCiz(b, karot.diziler[serit.sira], serit.c0 + kesim, 2.5, "#E62828", 2);
+    for (const kesim of karot.parcalar[i]?.kesimler || []) karotCaprazCiz(b, karot.diziler[serit.sira], serit.c0 + kesim, 2.8, "#E62828", 3);
   });
   karot.diziler.forEach((dizi, s) => {
     const ekran = dizi.map(([x, y]) => karotEkrana(x, y));
@@ -1679,7 +1681,68 @@ function karotHedefBul(ex, ey) {
       if (Math.hypot(sx - ex, sy - ey) <= 24) return { tur: "isaret", ad };
     }
   }
+  if (karot.mod === "kirik") {
+    let enIyi = null, sinir = 22;
+    karot.seritler.forEach((serit, i) => (karot.parcalar[i]?.kesimler || []).forEach((kesim, j) => {
+      const n = cetvelNoktasi(karot.diziler[serit.sira], serit.c0 + kesim);
+      const [sx, sy] = karotEkrana(n.x, n.y), uzak = Math.hypot(sx - ex, sy - ey);
+      if (uzak <= sinir) { enIyi = { tur: "kesim", i, j }; sinir = uzak; }
+    }));
+    return enIyi;
+  }
   return null;
+}
+
+// fotoğraftaki bir noktanın ölçülen şeritlerdeki yeri: { i: şerit, cm: şeridin başından } ya da karotun dışındaysa null
+function karotSeritteKonum(x, y) {
+  let enIyi = null;
+  karot.seritler.forEach((serit, i) => {
+    const dizi = karot.diziler[serit.sira], konum = cetvelKonumu(dizi, x, y);
+    if (!konum || konum[0] < serit.c0 - 0.5 || konum[0] > serit.c1 + 0.5) return;
+    const pikselCm = cetvelNoktasi(dizi, konum[0]).olcek;
+    if (konum[1] > 4 * pikselCm || (enIyi && konum[1] >= enIyi.uzak)) return;
+    enIyi = { i, cm: Math.min(karot.parcalar[i].uzunluk, Math.max(0, konum[0] - serit.c0)), uzak: konum[1] };
+  });
+  return enIyi;
+}
+
+// ölçülen parçalar fotoğrafta karotun üzerine, eksen boyunca yarı saydam bant olarak çizilir
+function karotParcalariCiz(b) {
+  if (karot.mod !== "kirik" && karot.mod !== "tur") return;  // nokta koyarken karotu örtmesin
+  karot.seritler.forEach((serit, i) => {
+    const sira = karot.parcalar[i], dizi = karot.diziler[serit.sira];
+    if (!sira) return;
+    for (const [a, c, tur] of karotParcalari(sira)) {
+      if (tur !== "s") continue;
+      const ust = [], alt = [];
+      for (let u = a; ; u = Math.min(c, u + 2)) {
+        const n = cetvelNoktasi(dizi, serit.c0 + u), nx = -n.yy * 2.6 * n.olcek, ny = n.yx * 2.6 * n.olcek;
+        ust.push(karotEkrana(n.x - nx, n.y - ny));
+        alt.push(karotEkrana(n.x + nx, n.y + ny));
+        if (u >= c) break;
+      }
+      const renk = tamCm(c - a) >= RQD_ESIGI ? "60, 180, 60" : "255, 210, 0";
+      b.beginPath();
+      [...ust, ...alt.reverse()].forEach(([x, y], k) => (k ? b.lineTo(x, y) : b.moveTo(x, y)));
+      b.closePath();
+      b.fillStyle = `rgba(${renk}, .28)`;
+      b.fill();
+      b.strokeStyle = `rgb(${renk})`;
+      b.lineWidth = 2;
+      b.stroke();
+      const orta = cetvelNoktasi(dizi, serit.c0 + (a + c) / 2), [mx, my] = karotEkrana(orta.x, orta.y);
+      if ((c - a) * orta.olcek * karot.olcek >= 22) {
+        b.font = "bold 12px -apple-system, sans-serif";
+        b.textAlign = "center";
+        b.textBaseline = "middle";
+        const metin = String(tamCm(c - a)), w = b.measureText(metin).width + 8;
+        b.fillStyle = "rgba(31, 41, 55, .85)";
+        b.fillRect(mx - w / 2, my - 9, w, 18);
+        b.fillStyle = "#fff";
+        b.fillText(metin, mx, my);
+      }
+    }
+  });
 }
 
 function karotDokunuldu(ex, ey, hedef) {
@@ -1708,6 +1771,20 @@ function karotDokunuldu(ex, ey, hedef) {
       karotIsaretleriSirala();
     }
   } else {
+    // kırık ve tür düzeltmeleri doğrudan fotoğrafta; öneriler yeniden yapılmaz
+    const konum = hedef ? null : karotSeritteKonum(x, y);
+    if (!hedef && !konum) {
+      if (karot.seritler.length) durumYaz("Ölçülen aralığın içinde, karotun üzerine dokunun");
+      return;
+    }
+    karotGecmiseEkle();
+    if (karot.mod === "kirik") {
+      hedef ? karotKesimSil(karot.parcalar[hedef.i], hedef.j) : karotKesimEkle(karot.parcalar[konum.i], konum.cm);
+    } else {
+      const sira = karot.parcalar[konum.i], k = sira.kesimler.filter((kesim) => kesim <= konum.cm).length;
+      sira.turler[k] = sira.turler[k] === "s" ? "b" : "s";
+    }
+    karotCizHepsi();
     return;
   }
   karotSeritleriGuncelle();
@@ -1752,6 +1829,18 @@ function karotDokunmalariniBagla() {
         const [x, y] = karotResme(n.x, n.y);
         if (hedef.tur === "kirp") karot.cizim = [basilan.x, basilan.y, n.x, n.y];
         else if (hedef.tur === "nokta") { karot.diziler[hedef.s][hedef.j] = [x, y]; karot.buyutec = [x, y]; }
+        else if (hedef.tur === "kesim") {
+          // kırık yalnızca kendi şeridinde, komşu kırıkların arasında kayar
+          const serit = karot.seritler[hedef.i], sira = karot.parcalar[hedef.i], k = sira.kesimler, j = hedef.j;
+          const yer = cetvelKonumu(karot.diziler[serit.sira], x, y);
+          if (yer) {
+            const alt = j > 0 ? k[j - 1] + 0.2 : 0.2, ust = j + 1 < k.length ? k[j + 1] - 0.2 : sira.uzunluk - 0.2;
+            k[j] = Math.round(Math.min(ust, Math.max(alt, yer[0] - serit.c0)) * 10) / 10;
+          }
+          karot.buyutec = [x, y];
+          karotCizHepsi();
+          return;
+        }
         else {
           const yer = karotCetvelde(x, y);
           if (yer) karot[hedef.ad] = yer;
@@ -1788,6 +1877,9 @@ function karotDokunmalariniBagla() {
         else karotDokunuldu(n.x, n.y, hedef);
       } else if (hedef?.tur === "kirp") {
         karotKirp();
+      } else if (hedef?.tur === "kesim") {
+        karot.buyutec = null;
+        karotCizHepsi();
       } else if (hedef) {
         karot.buyutec = null;
         karotIsaretleriSirala();
