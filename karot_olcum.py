@@ -107,8 +107,12 @@ def aralik_parcalari(diziler, baslangic, bitis):
     return sonuc
 
 
-def serit_cikar(img, noktalar, c0, c1):
-    """Dizinin c0-c1 cm arasını, karot ekseni yatay olacak şekilde düz bir şeride açar."""
+def serit_cikar(img, noktalar, c0, c1, kaydirma=0.0):
+    """Dizinin c0-c1 cm arasını, karot ekseni yatay olacak şekilde düz bir şeride açar.
+
+    kaydirma: karot ekseninin nokta dizisine dik uzaklığı (cm); eksi yukarı, artı aşağı. Noktalar bölmeye
+    konduğunda karot bunun yarım sıra yukarısında ya da aşağısındadır.
+    """
     n = np.asarray(noktalar, np.float64).reshape(-1, 2)
     genislik = max(1, int(round((c1 - c0) * PIKSEL_CM)))
     yukseklik = int(2 * SERIT_YARI * PIKSEL_CM)
@@ -119,7 +123,7 @@ def serit_cikar(img, noktalar, c0, c1):
     yon, olcek = d / uzunluk, uzunluk / NOKTA_ARALIGI
     merkez = n[k] + (cm / NOKTA_ARALIGI - k)[:, None] * d
     normal = np.stack([-yon[:, 1], yon[:, 0]], axis=1)
-    ofset = (np.arange(yukseklik) + 0.5) / PIKSEL_CM - SERIT_YARI
+    ofset = (np.arange(yukseklik) + 0.5) / PIKSEL_CM - SERIT_YARI + kaydirma
     harita = merkez[None] + ofset[:, None, None] * olcek[None] * normal[None]
     return cv2.remap(img, harita[..., 0].astype(np.float32), harita[..., 1].astype(np.float32),
                      cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)

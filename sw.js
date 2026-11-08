@@ -1,5 +1,5 @@
 // Uygulama dosyalarını ve okuma motorunu (Pyodide) önbelleğe alır; internet yokken de açılır.
-const ONBELLEK = "sondajlog-v13";
+const ONBELLEK = "sondajlog-v14";
 const MOTOR_ONBELLEGI = "sondajlog-motor-v1";
 const UYGULAMA = [
   "./", "index.html", "stil.css", "acilis.js", "poppins-800.woff2", "uygulama.js", "isci.js", "rakam_agi.js",

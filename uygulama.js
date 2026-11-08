@@ -1407,7 +1407,7 @@ function dokunmalariBagla() {
 const KAROT_FOTO_EN_BUYUK = 3000;
 const NOKTA_ARALIGI = 10, RQD_ESIGI = 10, SERIT_PX = 10;
 const KAROT_IPUCLARI = {
-  nokta: "Karotun ortasına, bölmedeki 10 cm çizgilerinin hizasına, derinlik yönünde sırayla dokunun. Alt sıraya geçince yeni sıra kendiliğinden başlar. Noktaya dokun: sil • sürükle: taşı • iki parmak: yakınlaştır.",
+  nokta: "Her sıranın altındaki bölmede 10 cm çizgilerine derinlik yönünde sırayla dokunun; alt sıraya geçince yeni sıra kendiliğinden başlar. Son sıranın altında bölme yoksa “Son Sıra (Üst Aralık)” düğmesine basın ya da noktaları üstteki bölmeye yeniden koyun. Son noktaya dokun: sil • sürükle: taşı • iki parmak: yakınlaştır.",
   sinir: "Önce manevranın başladığı, sonra bittiği yere dokunun; bitiş alt sırada olabilir. İşarete dokun: sil • sürükle: taşı.",
   kirik: "Fotoğrafta karotun üzerine dokun → kırık ekle • kırığa dokun → sil • kırığı sürükle → taşı. İki parmakla yakınlaştırın.",
   tur: "Fotoğrafta parçaya dokunun: sağlam (renkli) ↔ ezik/ufalanmış (renksiz, SCR ve RQD'ye sayılmaz).",
@@ -1497,11 +1497,49 @@ function cetvelNoktasi(dizi, cm) {
   return { x: ax + t * dx, y: ay + t * dy, yx: dx / uzunluk, yy: dy / uzunluk, olcek: uzunluk / NOKTA_ARALIGI };
 }
 
+// Noktalar her sıranın altındaki bölmeye konur, karot noktaların yarım sıra yukarısındadır. Son sıranın altında
+// bölme olmadığından onun noktaları üstteki bölmeye, bir önceki sıranın noktalarıyla aynı çizgiye konur; böyle
+// bir dizinin karotu noktaların altındadır. Yarım sıra, ardışık nokta dizileri arasındaki uzaklıktan bulunur.
+const VARSAYILAN_SIRA_ARALIGI = 7;  // cm
+
+function dizilerArasiUzaklik(a, b) {
+  // b'deki noktaların a çizgisine dik uzaklıklarının ortancası (cm)
+  const uzakliklar = b.map(([x, y]) => {
+    const konum = cetvelKonumu(a, x, y);
+    return konum ? konum[1] / cetvelNoktasi(a, konum[0]).olcek : Infinity;
+  }).sort((u, v) => u - v);
+  return uzakliklar.length ? uzakliklar[Math.floor(uzakliklar.length / 2)] : Infinity;
+}
+
+function karotKaydirmalari() {
+  const d = karot.diziler;
+  const altta = d.map((dizi, i) => dizi.length > 0 && d.slice(0, i).some((onceki) => onceki.length >= 2 && dizilerArasiUzaklik(onceki, dizi) < 2));
+  const araliklar = [];
+  for (let i = 1; i < d.length; i++) {
+    if (altta[i] || d[i - 1].length < 2 || !d[i].length) continue;
+    const u = dizilerArasiUzaklik(d[i - 1], d[i]);
+    if (u > 3 && u < 20) araliklar.push(u);
+  }
+  araliklar.sort((u, v) => u - v);
+  const yari = (araliklar.length ? araliklar[Math.floor(araliklar.length / 2)] : VARSAYILAN_SIRA_ARALIGI) / 2;
+  return d.map((_, i) => (altta[i] ? 1 : -1) * yari);
+}
+
+// s. dizinin ölçtüğü karotun ekseni üzerinde, cm konumundaki nokta (yön ve ölçek cetvelNoktasi ile aynı)
+function karotEksen(s, cm, kaydirmalar = karotKaydirmalari()) {
+  const n = cetvelNoktasi(karot.diziler[s], cm), k = kaydirmalar[s] * n.olcek;
+  return { ...n, x: n.x - n.yy * k, y: n.y + n.yx * k };
+}
+
 function karotCetvelde(x, y) {
+  // dokunulan yer hangi sıranın karotuna en yakınsa o sıra seçilir (aynı çizgideki iki dizi böyle ayrılır)
+  const kaydirmalar = karotKaydirmalari();
   let enIyi = null;
   karot.diziler.forEach((dizi, s) => {
     const konum = cetvelKonumu(dizi, x, y);
-    if (konum && (!enIyi || konum[1] < enIyi[2])) enIyi = [s, Math.round(konum[0] * 10) / 10, konum[1]];
+    if (!konum) return;
+    const eksen = karotEksen(s, konum[0], kaydirmalar), uzak = Math.hypot(x - eksen.x, y - eksen.y);
+    if (!enIyi || uzak < enIyi[2]) enIyi = [s, Math.round(konum[0] * 10) / 10, uzak];
   });
   return enIyi && enIyi.slice(0, 2);
 }
@@ -1542,9 +1580,9 @@ function tuvaliHazirla(t, yukseklik) {
   return [b, genislik, yukseklik];
 }
 
-function karotCaprazCiz(b, dizi, cm, yariCm, renk, kalinlik) {
-  // karot eksenine dik çizgi; üst ucunun ekran konumunu döndürür
-  const n = cetvelNoktasi(dizi, cm), nx = -n.yy * yariCm * n.olcek, ny = n.yx * yariCm * n.olcek;
+function karotCaprazCiz(b, s, cm, yariCm, renk, kalinlik, kaydirmalar) {
+  // s. sıranın karot eksenine dik çizgi; üst ucunun ekran konumunu döndürür
+  const n = karotEksen(s, cm, kaydirmalar), nx = -n.yy * yariCm * n.olcek, ny = n.yx * yariCm * n.olcek;
   const a = karotEkrana(n.x - nx, n.y - ny), c = karotEkrana(n.x + nx, n.y + ny);
   b.strokeStyle = renk;
   b.lineWidth = kalinlik;
@@ -1572,9 +1610,10 @@ function karotFotoCiz() {
   const [x0, y0] = karotResme(0, 0), o = karot.olcek;
   b.imageSmoothingQuality = "high";
   b.drawImage(foto, -x0 * o, -y0 * o, foto.width * o, foto.height * o);
-  karotParcalariCiz(b);
+  const kaydirmalar = karotKaydirmalari();
+  karotParcalariCiz(b, kaydirmalar);
   karot.seritler.forEach((serit, i) => {
-    for (const kesim of karot.parcalar[i]?.kesimler || []) karotCaprazCiz(b, karot.diziler[serit.sira], serit.c0 + kesim, 2.8, "#E62828", 3);
+    for (const kesim of karot.parcalar[i]?.kesimler || []) karotCaprazCiz(b, serit.sira, serit.c0 + kesim, 2.8, "#E62828", 3, kaydirmalar);
   });
   karot.diziler.forEach((dizi, s) => {
     const ekran = dizi.map(([x, y]) => karotEkrana(x, y));
@@ -1587,17 +1626,19 @@ function karotFotoCiz() {
     b.strokeStyle = "#000";
     b.lineWidth = 1;
     for (const [x, y] of ekran) { b.beginPath(); b.arc(x, y, 5, 0, 2 * Math.PI); b.fill(); b.stroke(); }
-    if (ekran.length) {
+    if (dizi.length >= 2) {
+      // sıra adı, dizinin ölçtüğü karotun hizasına yazılır (son sıranınki noktaların altında)
+      const basi = karotEksen(s, 0, kaydirmalar), [ex, ey] = karotEkrana(basi.x, basi.y);
       b.font = "bold 13px -apple-system, sans-serif";
       b.textAlign = "right";
       b.textBaseline = "middle";
-      b.fillText(`${s + 1}. sıra`, ekran[0][0] - 9, ekran[0][1]);
+      b.fillText(`${s + 1}. sıra`, ex - 9, ey);
     }
   });
   const aralik = karotAralik();
   for (const [ad, renk, metin] of [["baslangic", "#22C55E", "Başlangıç"], ["bitis", "#EF4444", "Bitiş"]]) {
     if (!karotIsaretGecerli(karot[ad])) continue;
-    const uc = karotCaprazCiz(b, karot.diziler[karot[ad][0]], karot[ad][1], 4, renk, 4);
+    const uc = karotCaprazCiz(b, karot[ad][0], karot[ad][1], 4, renk, 4, kaydirmalar);
     const derinlik = aralik ? ` ${yaziya(ad === "baslangic" ? aralik[0] : aralik[1])}` : "";
     etiketCiz(b, uc[0], uc[1], metin + derinlik, renk);
   }
@@ -1692,7 +1733,7 @@ function karotHedefBul(ex, ey) {
   if (karot.mod === "sinir") {
     for (const ad of ["baslangic", "bitis"]) {
       if (!karotIsaretGecerli(karot[ad])) continue;
-      const n = cetvelNoktasi(karot.diziler[karot[ad][0]], karot[ad][1]);
+      const n = karotEksen(karot[ad][0], karot[ad][1]);
       const [sx, sy] = karotEkrana(n.x, n.y);
       if (Math.hypot(sx - ex, sy - ey) <= 24) return { tur: "isaret", ad };
     }
@@ -1700,7 +1741,7 @@ function karotHedefBul(ex, ey) {
   if (karot.mod === "kirik") {
     let enIyi = null, sinir = 22;
     karot.seritler.forEach((serit, i) => (karot.parcalar[i]?.kesimler || []).forEach((kesim, j) => {
-      const n = cetvelNoktasi(karot.diziler[serit.sira], serit.c0 + kesim);
+      const n = karotEksen(serit.sira, serit.c0 + kesim);
       const [sx, sy] = karotEkrana(n.x, n.y), uzak = Math.hypot(sx - ex, sy - ey);
       if (uzak <= sinir) { enIyi = { tur: "kesim", i, j }; sinir = uzak; }
     }));
@@ -1713,26 +1754,26 @@ function karotHedefBul(ex, ey) {
 function karotSeritteKonum(x, y) {
   let enIyi = null;
   karot.seritler.forEach((serit, i) => {
-    const dizi = karot.diziler[serit.sira], konum = cetvelKonumu(dizi, x, y);
+    const konum = cetvelKonumu(karot.diziler[serit.sira], x, y);
     if (!konum || konum[0] < serit.c0 - 0.5 || konum[0] > serit.c1 + 0.5) return;
-    const pikselCm = cetvelNoktasi(dizi, konum[0]).olcek;
-    if (konum[1] > 4 * pikselCm || (enIyi && konum[1] >= enIyi.uzak)) return;
-    enIyi = { i, cm: Math.min(karot.parcalar[i].uzunluk, Math.max(0, konum[0] - serit.c0)), uzak: konum[1] };
+    const eksen = karotEksen(serit.sira, konum[0]), uzak = Math.hypot(x - eksen.x, y - eksen.y);
+    if (uzak > 4 * eksen.olcek || (enIyi && uzak >= enIyi.uzak)) return;
+    enIyi = { i, cm: Math.min(karot.parcalar[i].uzunluk, Math.max(0, konum[0] - serit.c0)), uzak };
   });
   return enIyi;
 }
 
 // ölçülen parçalar fotoğrafta karotun üzerine, eksen boyunca yarı saydam bant olarak çizilir
-function karotParcalariCiz(b) {
+function karotParcalariCiz(b, kaydirmalar) {
   if (karot.mod !== "kirik" && karot.mod !== "tur") return;  // nokta koyarken karotu örtmesin
   karot.seritler.forEach((serit, i) => {
-    const sira = karot.parcalar[i], dizi = karot.diziler[serit.sira];
+    const sira = karot.parcalar[i];
     if (!sira) return;
     for (const [a, c, tur] of karotParcalari(sira)) {
       if (tur !== "s") continue;
       const ust = [], alt = [];
       for (let u = a; ; u = Math.min(c, u + 2)) {
-        const n = cetvelNoktasi(dizi, serit.c0 + u), nx = -n.yy * 2.6 * n.olcek, ny = n.yx * 2.6 * n.olcek;
+        const n = karotEksen(serit.sira, serit.c0 + u, kaydirmalar), nx = -n.yy * 2.6 * n.olcek, ny = n.yx * 2.6 * n.olcek;
         ust.push(karotEkrana(n.x - nx, n.y - ny));
         alt.push(karotEkrana(n.x + nx, n.y + ny));
         if (u >= c) break;
@@ -1746,7 +1787,7 @@ function karotParcalariCiz(b) {
       b.strokeStyle = `rgb(${renk})`;
       b.lineWidth = 2;
       b.stroke();
-      const orta = cetvelNoktasi(dizi, serit.c0 + (a + c) / 2), [mx, my] = karotEkrana(orta.x, orta.y);
+      const orta = karotEksen(serit.sira, serit.c0 + (a + c) / 2, kaydirmalar), [mx, my] = karotEkrana(orta.x, orta.y);
       if ((c - a) * orta.olcek * karot.olcek >= 22) {
         b.font = "bold 12px -apple-system, sans-serif";
         b.textAlign = "center";
@@ -1765,7 +1806,11 @@ function karotDokunuldu(ex, ey, hedef) {
   const [x, y] = karotResme(ex, ey);
   if (karot.mod === "nokta") {
     karotGecmiseEkle();
-    hedef ? karotNoktaSil(hedef.s, hedef.j) : karotNoktaEkle(x, y);
+    // yalnızca en son konan nokta dokununca silinir; başka bir noktanın üstüne dokunmak oraya yeni nokta koyar
+    // (son sıranın noktaları üstteki sıranın noktalarıyla aynı yere konur)
+    const sonDizi = karot.diziler[karot.aktif];
+    if (hedef && sonDizi && hedef.s === karot.aktif && hedef.j === sonDizi.length - 1) karotNoktaSil(hedef.s, hedef.j);
+    else karotNoktaEkle(x, y);
   } else if (karot.mod === "sinir") {
     if (hedef) {
       karotGecmiseEkle();
@@ -1781,7 +1826,7 @@ function karotDokunuldu(ex, ey, hedef) {
       else if (!karot.bitis) karot.bitis = konum;
       else {
         // ikisi de varsa dokunulan yere yakın olan taşınır
-        const uzaklik = (ad) => { const n = cetvelNoktasi(karot.diziler[karot[ad][0]], karot[ad][1]); return Math.hypot(n.x - x, n.y - y); };
+        const uzaklik = (ad) => { const n = karotEksen(karot[ad][0], karot[ad][1]); return Math.hypot(n.x - x, n.y - y); };
         karot[uzaklik("baslangic") <= uzaklik("bitis") ? "baslangic" : "bitis"] = konum;
       }
       karotIsaretleriSirala();
@@ -1986,7 +2031,7 @@ async function karotSeritleriGuncelle(oner = true) {
       karot.gonderilen = surum;
       motorHazir = true;
     }
-    const seritler = await iste("karot_seritleri", { diziler: karot.diziler, baslangic: karot.baslangic, bitis: karot.bitis });
+    const seritler = await iste("karot_seritleri", { diziler: karot.diziler, kaydirmalar: karotKaydirmalari(), baslangic: karot.baslangic, bitis: karot.bitis });
     if (no !== karot.istek) return;  // bu arada yeni bir istek yapıldı
     karot.seritler = seritler.map((serit) => {
       const resim = document.createElement("canvas");
@@ -2269,6 +2314,19 @@ function karotBagla() {
   $("karot-kirp").onclick = karotKirpmaDegistir;
   $("karot-tum").onclick = karotTumu;
   $("karot-yeni-sira").onclick = () => { karot.aktif = null; karotModSec("nokta"); };
+  $("karot-son-sira").onclick = () => {
+    // son sıranın altında bölme yok: önceki sıranın noktaları aynen kopyalanır, karotu noktaların altında sayılır
+    const onceki = karot.diziler[karot.diziler.length - 1];
+    if (!onceki || onceki.length < 2) {
+      sor("Karot Ölçümü", "Önce üstteki sıranın noktalarını (son sıranın üstündeki bölmeye) koyun.", [["Tamam", true, true]]);
+      return;
+    }
+    karotGecmiseEkle();
+    karot.diziler.push(onceki.map(([x, y]) => [x, y]));
+    karot.aktif = null;
+    karotModSec("nokta");
+    karotSeritleriGuncelle();
+  };
   $("karot-son-nokta").onclick = () => {
     const s = karot.aktif ?? karot.diziler.length - 1;
     if (s < 0 || !karot.diziler[s]) return;

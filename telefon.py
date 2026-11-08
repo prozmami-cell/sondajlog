@@ -81,9 +81,10 @@ def karot_seritleri(istek_json):
     """Başlangıç ile bitiş arasındaki şeritler ve önerilen parçaları; şerit pikselleri ayrıca alınır."""
     istek = json.loads(istek_json)
     diziler = istek["diziler"]
+    kaydirmalar = istek.get("kaydirmalar") or [0.0] * len(diziler)
     sonuc, karot["pikseller"] = [], []
     for s, c0, c1 in karot_olcum.aralik_parcalari(diziler, tuple(istek["baslangic"]), tuple(istek["bitis"])):
-        serit = karot_olcum.serit_cikar(karot["img"], diziler[s], c0, c1)
+        serit = karot_olcum.serit_cikar(karot["img"], diziler[s], c0, c1, kaydirmalar[s])
         sonuc.append({"sira": s, "c0": c0, "c1": c1, "genislik": serit.shape[1], "yukseklik": serit.shape[0],
                       "oneri": karot_olcum.serit_oner(serit, karot["ton"])})
         karot["pikseller"].append(cv2.cvtColor(serit, cv2.COLOR_BGR2RGBA))
