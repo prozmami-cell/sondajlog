@@ -1703,7 +1703,8 @@ async function karotFotoHazirla(dosya) {
   return t;
 }
 
-async function karotAc(dosya, oncekiKoru = false) {
+// onceki: önceki fotoğraf(lar)dan taşınan şeritler; yalnızca fotoğraf açılabilirse geçer
+async function karotAc(dosya, onceki = []) {
   let tuval;
   try {
     tuval = await karotFotoHazirla(dosya);
@@ -1713,7 +1714,7 @@ async function karotAc(dosya, oncekiKoru = false) {
   }
   Object.assign(karot, {
     tuval, surum: karot.surum + 1, diziler: [], aktif: null, baslangic: null, bitis: null, seritler: [], parcalar: [],
-    onceki: oncekiKoru ? karot.onceki : [], gecmis: [], kirpma: false, cizim: null, buyutec: null,
+    onceki, gecmis: [], kirpma: false, cizim: null, buyutec: null,
   });
   if ($("katman-karot").hidden) {
     karot.kayitMesaji = "";
@@ -2470,6 +2471,12 @@ function karotHesapla(seritler) {
       }
     }
   }
+  // parçalar tek tek yuvarlandığından toplamları TCR'yi aşabilir (19 cm'de 9,5 + 9,5 -> 10 + 10 = 20);
+  // SCR işaretlenen boydan, RQD de SCR'den büyük olamaz (karot_olcum.hesapla ile aynı)
+  toplam.scrHam = toplam.scr;
+  toplam.rqdHam = toplam.rqd;
+  toplam.scr = Math.min(toplam.scr, toplam.tcr);
+  toplam.rqd = Math.min(toplam.rqd, toplam.scr);
   toplam.sayilmayan = toplam.tcr - toplam.scr;
   return toplam;
 }
@@ -2488,8 +2495,9 @@ function karotSonucYaz() {
     const yaz = (ad) => (aralik ? `${t[ad]} ÷ ${uzunluk} cm = %${karotYuzde(t[ad], aralik)}` : `${t[ad]} cm`);
     $("karot-sonuc").textContent = `TCR: ${yaz("tcr")}\nSCR: ${yaz("scr")}\nRQD: ${yaz("rqd")}`;
     bilgiler.push(`TCR = işaretlenen aralık: ${t.tcr} cm`);
-    bilgiler.push(`SCR = sağlam parçalar: ${t.scrParcalar.join(" + ") || "yok"} = ${t.scr} cm`);
-    bilgiler.push(`RQD = ${RQD_ESIGI} cm ve üzeri sağlam parçalar: ${t.rqdParcalar.join(" + ") || "yok"} = ${t.rqd} cm`);
+    const toplamYazisi = (ham, son, ust) => (ham === son ? `${son} cm` : `${ham} cm → ${son} cm (${ust}'yi aşamaz)`);
+    bilgiler.push(`SCR = sağlam parçalar: ${t.scrParcalar.join(" + ") || "yok"} = ${toplamYazisi(t.scrHam, t.scr, "TCR")}`);
+    bilgiler.push(`RQD = ${RQD_ESIGI} cm ve üzeri sağlam parçalar: ${t.rqdParcalar.join(" + ") || "yok"} = ${toplamYazisi(t.rqdHam, t.rqd, "SCR")}`);
     bilgiler.push(`SCR'ye sayılmayan (ezik / ufalanmış / boş): ${t.sayilmayan} cm`);
   }
   if (karot.onceki.length) bilgiler.push(`Önceki fotoğraf(lar)dan gelen ${karot.onceki.length} sıra dahil.`);
@@ -2542,8 +2550,9 @@ async function karotDevam(dosya) {
     await karotSeritleriGuncelle();
   }
   if (!karot.parcalar.length) return sor("Karot Ölçümü", "Bu fotoğrafta ölçülecek aralık yok.", [["Tamam", true, true]]);
-  karot.onceki = [...karot.onceki, ...JSON.parse(JSON.stringify(karot.parcalar))];
-  if (await karotAc(dosya, true)) {
+  // masaüstündeki gibi: bu fotoğrafın parçaları ancak sonraki fotoğraf açılınca öncekilere eklenir
+  const onceki = [...karot.onceki, ...JSON.parse(JSON.stringify(karot.parcalar))];
+  if (await karotAc(dosya, onceki)) {
     karot.kayitMesaji = "Sonraki fotoğrafta manevranın kalanını işaretleyin: başlangıç sıranın başı, bitiş manevranın sonu.";
     karotCizHepsi();
   }

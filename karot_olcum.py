@@ -207,5 +207,10 @@ def hesapla(seritler):
                 if uzunluk >= RQD_ESIGI:
                     toplam["rqd"] += uzunluk
                     toplam["rqd_parcalar"].append(uzunluk)
+    # parçalar tek tek yuvarlandığından toplamları TCR'yi aşabilir (19 cm'de 9,5 + 9,5 -> 10 + 10 = 20);
+    # SCR işaretlenen boydan, RQD de SCR'den büyük olamaz. Yuvarlanmış ham toplamlar ayrıca saklanır.
+    toplam["scr_ham"], toplam["rqd_ham"] = toplam["scr"], toplam["rqd"]
+    toplam["scr"] = min(toplam["scr"], toplam["tcr"])
+    toplam["rqd"] = min(toplam["rqd"], toplam["scr"])
     toplam["sayilmayan"] = toplam["tcr"] - toplam["scr"]
     return toplam
