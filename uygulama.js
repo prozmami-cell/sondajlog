@@ -239,8 +239,12 @@ function sptListesi() {
 }
 
 // LogPlot SPT-N grafiği: her SPT, başlangıç derinliğinin 0,25 m altına N değeriyle yazılır (1,50-1,95 -> 1,75)
+// refü olan SPT'lerde (N = R) grafiğe 100 yazılır; SPT listesindeki N yine R kalır
 function sptGrafikSatirlari() {
-  return sptListesi().map(([bas, , tip]) => [yaziya(r2(sayiya(bas) + 0.25)), (veri.spt_degerleri[tip] || [])[3] ?? ""]);
+  return sptListesi().map(([bas, , tip]) => {
+    const n = (veri.spt_degerleri[tip] || [])[3] ?? "";
+    return [yaziya(r2(sayiya(bas) + 0.25)), n === "R" ? "100" : n];
+  });
 }
 
 function sptKaydet() {
@@ -256,6 +260,7 @@ function sptKaydet() {
   durumYaz(`${secilen} kaydedildi: ${d1} / ${d2} / ${d3} → N = ${n}`);
   const sonraki = numaralar[numaralar.indexOf(secilen) + 1];
   sptCiz(sonraki ?? "");
+  numuneCiz(false);
   if (sonraki) $("darbe-1").focus();
 }
 
@@ -266,6 +271,7 @@ function sptSil() {
   kaydet();
   durumYaz(`${secilen} değerleri silindi`);
   sptCiz(secilen);
+  numuneCiz(false);
 }
 
 // ---------- TCR ----------
@@ -526,7 +532,8 @@ function numuneListesiniDuzenle(liste) {
 // derinliğe göre sıralı [başlangıç, bitiş, ad, karot sırası (karot değilse -1), kaynak]
 function numuneSatirlari() {
   const satirlar = [
-    ...veri.manevralar.filter((m) => m[2].startsWith("SPT")).map(([bas, bit, tip]) => [bas, bit, tip, -1, "manevralardan"]),
+    // SPT-N'si R (refü) olan SPT'ler numune listesine girmez
+    ...veri.manevralar.filter((m) => m[2].startsWith("SPT") && (veri.spt_degerleri[m[2]] || [])[3] !== "R").map(([bas, bit, tip]) => [bas, bit, tip, -1, "manevralardan"]),
     ...manevraUdleri().map(([bas, bit, ad]) => [bas, bit, ad, -1, "manevralardan"]),
     ...veri.ud_listesi.map(([bas, bit, ad]) => [bas, bit, ad, -1, "elle (UD)"]),
   ];
