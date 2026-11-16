@@ -247,11 +247,13 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 .sekmeler button {
   position: relative; z-index: 1; background: none; border-radius: 0; min-height: 0; height: 56px; padding: 0;
   flex-direction: column; gap: 2px; font-size: 10.5px; font-weight: 600; color: #334155;
+  /* "Kaya Özellikleri" iki satıra iner: simgeler hep aynı hizada kalsın diye içerik üstten dizilir */
+  justify-content: flex-start; padding-top: 7px; line-height: 1.15; text-align: center;
 }
 .sekmeler button:active { background: none; }
 .sekmeler button svg { width: 20px; height: 20px; }
 /* seçili sekmenin simgesi balonda gösterilir; yazısı çubukta, balonun altında kalır */
-.sekmeler button.secili { color: var(--vurgu); font-weight: 700; justify-content: flex-end; padding-bottom: 6px; }
+.sekmeler button.secili { color: var(--vurgu); font-weight: 700; justify-content: flex-end; padding-top: 0; padding-bottom: 6px; }
 .sekmeler button.secili svg { display: none; }
 .sekme-balon {
   position: absolute; left: 0; top: 9px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; overflow: hidden;

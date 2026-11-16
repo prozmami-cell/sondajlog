@@ -2714,7 +2714,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v21";
+const SURUM = "v22";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
