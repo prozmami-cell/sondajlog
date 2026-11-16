@@ -2713,16 +2713,43 @@ function baglantilariKur() {
   karotBagla();
 }
 
+// sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
+const SURUM = "v21";
+
+// Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
+// sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
+// Yazı yazılırken yenilenmez (kutu odaktaysa bir sonraki öne gelişe kalır); kuyular zaten her değişiklikte kaydedilir.
+function guncellemeyiIzle() {
+  if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost")) return;
+  const oncekiDenetci = navigator.serviceWorker.controller;
+  let yenilenecek = false;
+  const yenile = () => {
+    const odak = document.activeElement;
+    const yaziliyor = odak && (odak.tagName === "INPUT" || odak.tagName === "TEXTAREA" || odak.tagName === "SELECT");
+    if (document.visibilityState === "visible" && !yaziliyor) location.reload();
+    else yenilenecek = true;
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (oncekiDenetci) yenile();  // ilk kurulumda değil, yalnızca sürüm değişince
+  });
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((kayit) => {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      if (yenilenecek) yenile();
+      else kayit.update().catch(() => {});
+    });
+  }).catch(() => {});
+}
+
 function baslat() {
   baglantilariKur();
   if (aktifKimlik && kuyular[aktifKimlik]) kuyuAc(aktifKimlik);
   else yeniKuyu();
   ozetiCiz();
+  durumYaz(`Logvera ${SURUM}`);
   requestAnimationFrame(camiTasi);
   window.addEventListener("resize", camiTasi);
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  }
+  guncellemeyiIzle();
 }
 
 baslat();

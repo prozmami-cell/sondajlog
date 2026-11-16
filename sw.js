@@ -1,5 +1,5 @@
 // Uygulama dosyalarını ve okuma motorunu (Pyodide) önbelleğe alır; internet yokken de açılır.
-const ONBELLEK = "sondajlog-v20";
+const ONBELLEK = "sondajlog-v21";  // uygulama.js'deki SURUM ile aynı tutulur
 const MOTOR_ONBELLEGI = "sondajlog-motor-v1";
 const UYGULAMA = [
   "./", "index.html", "stil.css", "acilis.js", "poppins-800.woff2", "uygulama.js", "isci.js", "rakam_agi.js",
@@ -36,9 +36,10 @@ self.addEventListener("fetch", (olay) => {
     return;
   }
 
-  // Uygulama dosyaları: internet varsa en güncelini al, yoksa önbellekten aç
+  // Uygulama dosyaları: internet varsa en güncelini al, yoksa önbellekten aç. Tarayıcının HTTP önbelleği
+  // (GitHub Pages 10 dk) atlanır, yoksa yeni sürüm yayındayken eski dosya gelebilir.
   if (adres.origin === self.location.origin) {
-    olay.respondWith(fetch(istek).then((yanit) => {
+    olay.respondWith(fetch(istek.url, { cache: "no-cache", credentials: "same-origin" }).then((yanit) => {
       if (yanit.ok) {
         const kopya = yanit.clone();
         olay.waitUntil(caches.open(ONBELLEK).then((onbellek) => onbellek.put(istek, kopya)));
