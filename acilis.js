@@ -1,4 +1,4 @@
-// Açılış animasyonu: design/logvera-splash.html'deki "1. Fikir: Delip çıkan uç" ile aynı çizimler ve zamanlama.
+// Kısa açılış: darbe, logo oluşumu ve büyüyerek çıkış tek zaman çizelgesinde.
 // Yalnızca transform ve opacity canlandırılır (donanım hızlandırmalı); bitince katman sayfadan kaldırılır.
 (() => {
   const kap = document.getElementById("acilis");
@@ -7,6 +7,8 @@
   const NS = "http://www.w3.org/2000/svg";
   const ARALIK = 70;  // şeritler arası mesafe
   const animasyonlar = [];
+  let bitti = false;
+  window.__acilisHazir = false;
 
   // şeritler (dönme sırasında yukarı kayarlar)
   const seritler = $("seritler");
@@ -24,7 +26,7 @@
     const c = document.createElementNS(NS, "circle");
     c.setAttribute("cx", 468);
     c.setAttribute("cy", 464);
-    c.setAttribute("r", 4 + Math.random() * 5);
+    c.setAttribute("r", 4 + (i % 4) * 1.5);
     c.setAttribute("fill", i % 3 ? "#b9c6e6" : "#8fa6e8");
     c.style.opacity = 0;
     toz.appendChild(c);
@@ -37,44 +39,35 @@
     return a;
   }
 
-  // Dönme: hızlan, sabit, yavaşla. Toplam kayma ARALIK'ın katı olur ki şeritler logodaki konumunda dursun.
-  function don(gecikme, toplam, yavaslama) {
-    const N = 60, hizlanma = 250, hiz = [];
-    for (let i = 0; i <= N; i++) {
-      const t = toplam * i / N;
-      let s = 1;
-      if (t < hizlanma) s = t / hizlanma;
-      if (t > yavaslama) s = Math.max(0, 1 - (t - yavaslama) / (toplam - yavaslama));
-      hiz.push(s * s * (3 - 2 * s) || (s > 0 ? s : 0));
-    }
-    const yol = [0];
-    for (let i = 1; i <= N; i++) yol.push(yol[i - 1] + (hiz[i] + hiz[i - 1]) / 2);
-    const hedef = toplam / 1000 * 520;  // ~520 birim/sn kayma
-    const tur = Math.max(1, Math.round(hedef / ARALIK));
-    const olcek = tur * ARALIK / yol[N];
-    const kareler = yol.map((x, i) => ({ transform: `translateY(${-x * olcek}px)`, offset: i / N }));
-    A(seritler, kareler, { delay: gecikme, duration: toplam, easing: "linear" });
+  // Dört tam aralık sonunda şeritler logodaki desenine kilitlenir.
+  function don() {
+    A(seritler, [
+      { transform: "translateY(0)" },
+      { transform: `translateY(${-ARALIK * 3}px)`, offset: 300 / 670, easing: "cubic-bezier(.15,.65,.25,1)" },
+      { transform: `translateY(${-ARALIK * 4}px)` },
+    ], { delay: 80, duration: 670, easing: "linear" });
   }
 
-  function tozSac(gecikme, adet) {
-    parcaciklar.forEach((c, i) => {
-      const dx = (Math.random() * 2 - 1) * 90;
-      const dy = -(10 + Math.random() * 40);
-      for (let b = 0; b < adet; b++) {
-        A(c, [
-          { opacity: 0, transform: "translate(0,0) scale(.6)" },
-          { opacity: 0.9, transform: `translate(${dx * 0.3}px,${dy * 0.5}px) scale(1)`, offset: 0.25 },
-          { opacity: 0, transform: `translate(${dx}px,${dy}px) scale(.4)` },
-        ], { delay: gecikme + b * 260 + i * 18, duration: 520, fill: "none", easing: "cubic-bezier(.2,.7,.3,1)" });
-      }
+  function tozSac() {
+    parcaciklar.forEach((parcacik, sira) => {
+      const yon = sira % 2 ? 1 : -1;
+      const uzaklik = yon * (38 + Math.floor(sira / 2) * 11);
+      const yukseklik = 16 + (sira % 5) * 7;
+      A(parcacik, [
+        { opacity: 0, transform: "translate(0,0) scale(.5)" },
+        { opacity: .8, transform: `translate(${uzaklik * .25}px,${-yukseklik * .7}px) scale(1)`, offset: .15 },
+        { opacity: .4, transform: `translate(${uzaklik * .75}px,${-yukseklik}px) scale(.7)`, offset: .6 },
+        { opacity: 0, transform: `translate(${uzaklik}px,-4px) scale(.3)` },
+      ], { delay: 380, duration: 300, easing: "linear" });
     });
   }
 
-  function titre(gecikme, sure) {
+  function titre() {
     A($("titre"), [
-      { transform: "translateX(0)" }, { transform: "translateX(-2.5px)" },
-      { transform: "translateX(2.5px)" }, { transform: "translateX(0)" },
-    ], { delay: gecikme, duration: 90, iterations: Math.round(sure / 90), fill: "none", easing: "linear" });
+      { transform: "translateX(0)" }, { transform: "translateX(-2px)" },
+      { transform: "translateX(1.5px)" }, { transform: "translateX(-.7px)" },
+      { transform: "translateX(0)" },
+    ], { delay: 380, duration: 120, easing: "linear" });
   }
 
   function yazilariYerlestir() {
@@ -86,69 +79,81 @@
     } catch (hata) { /* yazı ölçülemezse tasarımdaki konumda kalır */ }
   }
 
-  function kapanis(t) {
+  function kapanis() {
     // zemin çizgisi kaybolur, fazla şeritler örtülür, LV çizilir, yazılar gelir, logo büyüyerek kaybolur
-    A($("cizgi"), [{ opacity: 1 }, { opacity: 0 }], { delay: t.zeminSonu, duration: 300 });
-    A($("ortu"), [{ opacity: 0 }, { opacity: 1 }], { delay: t.lv - 150, duration: 300 });
-    A($("ortu-ust"), [{ opacity: 0 }, { opacity: 1 }], { delay: t.lv - 150, duration: 300 });
+    A($("cizgi"), [{ opacity: 1 }, { opacity: 0 }], { delay: 380, duration: 370 });
+    A($("ortu"), [{ opacity: 0 }, { opacity: 1 }], { delay: 650, duration: 130 });
+    A($("ortu-ust"), [{ opacity: 0 }, { opacity: 1 }], { delay: 650, duration: 130 });
     const L = $("l");
     L.style.transformBox = "fill-box";
     L.style.transformOrigin = "top";
     A(L, [{ opacity: 1, transform: "scaleY(0)" }, { opacity: 1, transform: "scaleY(1)" }],
-      { delay: t.lv, duration: 450, easing: "cubic-bezier(.3,.7,.3,1)" });
+      { delay: 680, duration: 240, easing: "cubic-bezier(.3,.7,.3,1)" });
     const S3 = $("serit3");
     S3.style.transformBox = "fill-box";
     S3.style.transformOrigin = "left";
     A(S3, [{ opacity: 1, transform: "scaleX(0)" }, { opacity: 1, transform: "scaleX(1)" }],
-      { delay: t.lv + 250, duration: 350, easing: "cubic-bezier(.3,.7,.3,1)" });
+      { delay: 730, duration: 200, easing: "cubic-bezier(.3,.7,.3,1)" });
     const V = $("v");
     V.style.transformBox = "fill-box";
     V.style.transformOrigin = "center";
     A(V, [
       { opacity: 0, transform: "scale(.3)" },
-      { opacity: 1, transform: "scale(1.15)", offset: 0.7 },
+      { opacity: 1, transform: "scale(1.06)", offset: 0.7 },
       { opacity: 1, transform: "scale(1)" },
-    ], { delay: t.lv + 400, duration: 380, easing: "cubic-bezier(.2,.8,.2,1)" });
+    ], { delay: 760, duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
 
-    A($("log"), [{ opacity: 0, transform: "translateX(-70px)" }, { opacity: 1, transform: "translateX(0)" }],
-      { delay: t.yazilar + 100, duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
-    A($("vera"), [{ opacity: 0, transform: "translateX(70px)" }, { opacity: 1, transform: "translateX(0)" }],
-      { delay: t.yazilar + 160, duration: 450, easing: "cubic-bezier(.2,.8,.2,1)" });
+    A($("log"), [{ opacity: 0, transform: "translateX(-32px)" }, { opacity: 1, transform: "translateX(0)" }],
+      { delay: 800, duration: 280, easing: "cubic-bezier(.2,.8,.2,1)" });
+    A($("vera"), [{ opacity: 0, transform: "translateX(32px)" }, { opacity: 1, transform: "translateX(0)" }],
+      { delay: 820, duration: 280, easing: "cubic-bezier(.2,.8,.2,1)" });
 
     // büyüme logonun gövdesine doğru olsun
-    const z = $("zoom"), zr = z.getBoundingClientRect(), br = $("titre").getBoundingClientRect();
-    z.style.transformOrigin = `${br.left + br.width / 2 - zr.left}px ${br.top + br.height * 0.55 - zr.top}px`;
+    const z = $("zoom"), alan = z.getBoundingClientRect();
+    const merkez = new DOMPoint(469, 280).matrixTransform(kap.querySelector("svg").getScreenCTM());
+    z.style.transformOrigin = `${merkez.x - alan.left}px ${merkez.y - alan.top}px`;
     const buyume = A(z, [
       { transform: "scale(1)", opacity: 1 },
-      { transform: "scale(0.94)", opacity: 1, offset: 0.2 },
       { transform: "scale(5)", opacity: 0 },
-    ], { delay: t.zoom, duration: 700, easing: "cubic-bezier(.5,0,.75,.25)" });
+    ], { delay: 1200, duration: 400, easing: "cubic-bezier(.5,0,.75,.25)" });
     // tasarımda ana ekranın belirdiği an: beyaz zemin çekilir, alttaki ana ekran görünür
-    const zemin = A($("zemin"), [{ opacity: 1 }, { opacity: 0 }], { delay: t.zoom + 450, duration: 400 });
+    const zemin = A($("zemin"), [{ opacity: 1 }, { opacity: 0 }], { delay: 1350, duration: 300 });
     return Promise.all([buyume.finished, zemin.finished]);
   }
 
   function oynat() {
+    if (bitti) return;
     yazilariYerlestir();
-    A($("cizgi"), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { delay: 0, duration: 350 });
-    // yukarıdan dönerek iner, zemini deler, hafifçe zıplayıp yerine oturur
+    // Çizgi merkezden açılır; matkap darbe anına kadar hızlanır.
+    $("cizgi").style.transformOrigin = "468px 466px";
+    A($("cizgi"), [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }],
+      { duration: 200, easing: "cubic-bezier(.2,.7,.3,1)" });
     A($("matkap"), [
-      { transform: "translateY(-700px)", offset: 0, easing: "cubic-bezier(.2,.7,.3,1)" },
-      { transform: "translateY(0px)", offset: 0.32, easing: "ease-in-out" },
-      { transform: "translateY(40px)", offset: 0.7, easing: "cubic-bezier(.3,0,.2,1)" },
-      { transform: "translateY(-8px)", offset: 0.9, easing: "ease-out" },
-      { transform: "translateY(0px)", offset: 1 },
-    ], { delay: 200, duration: 2100 });
-    titre(870, 800);
-    tozSac(900, 3);
-    don(200, 2500, 1500);
-    return kapanis({ zeminSonu: 2200, lv: 2550, yazilar: 3050, zoom: 3950 });
+      { transform: "translateY(-700px)", offset: 0, easing: "cubic-bezier(.42,0,1,1)" },
+      { transform: "translateY(16px)", offset: 300 / 670, easing: "cubic-bezier(0,0,.3,1)" },
+      { transform: "translateY(40px)", offset: 390 / 670, easing: "cubic-bezier(.3,0,.2,1)" },
+      { transform: "translateY(-4px)", offset: 560 / 670, easing: "ease-out" },
+      { transform: "translateY(0)" },
+    ], { delay: 80, duration: 670, easing: "linear" });
+    titre();
+    tozSac();
+    don();
+    const tamamlanma = kapanis();
+    // Tüm efektler hazır; kare üreticisi artık zamanı doğrudan atayabilir.
+    window.__acilisSure = 1600;
+    window.__acilisHazir = true;
+    return tamamlanma;
   }
 
   function bitir() {
-    animasyonlar.forEach((a) => a.cancel());
+    if (bitti) return;
+    bitti = true;
+    kap.removeEventListener("pointerdown", bitir);
+    animasyonlar.forEach((animasyon) => animasyon.cancel());
     kap.remove();
   }
+
+  kap.addEventListener("pointerdown", bitir, { once: true });
 
   // hareket azaltma tercihi açıksa ya da tarayıcı Web Animations desteklemiyorsa doğrudan ana ekran
   if (!kap.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -157,8 +162,11 @@
   }
   // "Log"/"vera" doğru genişlikte yerleşsin diye yazı tipi beklenir (en çok 1 sn)
   const yaziTipi = document.fonts && document.fonts.load ? document.fonts.load('800 122px "Poppins"').catch(() => {}) : Promise.resolve();
-  Promise.race([yaziTipi, new Promise((coz) => setTimeout(coz, 1000))])
-    .then(oynat)
+  // Yazı tipi bekleme sınırı da WAAPI ile tutulur; zamanlayıcı gerekmez.
+  const bekleme = kap.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1000 });
+  animasyonlar.push(bekleme);
+  Promise.race([yaziTipi, bekleme.finished])
+    .then(() => { bekleme.cancel(); return oynat(); })
     .catch(() => {})
     .then(bitir);
 })();
