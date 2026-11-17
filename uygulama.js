@@ -40,7 +40,7 @@ function tarihiBicimle(yazi) {
 }
 
 function bosVeri() {
-  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, birimler: [], ud_listesi: [], numune_listesi: { yass: "", karotlar: [] } };
+  return { kuyu_bilgileri: { proje: "", kuyu: "", baslama_tarihi: "", bitis_tarihi: "" }, manevralar: [], tcr_sonuclari: [], spt_degerleri: {}, spt_araliklari: {}, birimler: [], ud_listesi: [], numune_listesi: { yass: "", karotlar: [] } };
 }
 
 function depoOku(anahtar, varsayilan) {
@@ -90,6 +90,7 @@ function kuyuAc(kimlik) {
   veri = JSON.parse(JSON.stringify(kuyular[kimlik].veri));
   veri.kuyu_bilgileri = kuyuBilgileriniDuzenle(veri.kuyu_bilgileri);
   veri.spt_degerleri = veri.spt_degerleri || {};
+  veri.spt_araliklari = veri.spt_araliklari || {};
   veri.tcr_sonuclari = veri.tcr_sonuclari || [];
   veri.birimler = veri.birimler || [];
   veri.numune_listesi = numuneListesiniDuzenle(veri.numune_listesi);
@@ -196,6 +197,7 @@ function sonManevrayiSil() {
     if (kalan.length !== veri.tcr_sonuclari.length) ekBilgi = " (TCR/SCR/RQD sonucu da silindi)";
     veri.tcr_sonuclari = kalan;
   }
+  if (numuneTipi.startsWith("SPT")) delete veri.spt_araliklari[numuneTipi];
   if (numuneTipi.startsWith("SPT") && veri.spt_degerleri[numuneTipi]) {
     delete veri.spt_degerleri[numuneTipi];
     ekBilgi = " (SPT değerleri de silindi)";
@@ -970,6 +972,10 @@ async function dosyadanAc(dosya) {
     for (const m of okunan.manevralar) manevrayiIsle(sayiya(m[0]), sayiya(m[1]), m.length > 2 ? kayittakiTip(m[2]) : null);
     veri.tcr_sonuclari = (okunan.tcr_sonuclari || []).map((s) => [String(s[0]), Number(s[1]), Number(s[2]), Number(s[3])]);
     for (const [tip, d] of Object.entries(okunan.spt_degerleri || {})) veri.spt_degerleri[tip] = d.map(String);
+    // masaüstünde düzeltilen SPT aralıkları (ör. refü 21,00-21,03); telefon henüz göstermiyor ama kaydederken korur
+    for (const [tip, a] of Object.entries(okunan.spt_araliklari || {})) {
+      if (Array.isArray(a) && a.length === 2) veri.spt_araliklari[tip] = a.map(String);
+    }
     veri.birimler = (okunan.birimler || []).map((b) => [0, 1, 2].map((i) => String(b[i] ?? "")));
     aktifKimlik = yeniKimlik();
     kaydet();
@@ -2714,7 +2720,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v23";
+const SURUM = "v24";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
