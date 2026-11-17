@@ -146,6 +146,126 @@ function sonrakiOneri(derinlik, numuneTipi, durum) {
   return { baslangic: yaziya(derinlik), bitis: yaziya(bitis) };
 }
 
+// ---------- Manevra aralığını sonradan düzenleme ----------
+// Masaüstündeki gibi: numune tipi ve adı (SPT-7 vb.) korunur; istenirse bitişik manevraların ucu da kayar. SPT listesi,
+// Kaya Özellikleri ve numune listesi yeni aralığı takip eder: aralığı değişen K'nin TCR sonucu yeni aralığa taşınır ve
+// yeni boya göre yeniden hesaplanır (eski % x eski boy / yeni boy; karot sığmazsa silinir), elle girilmiş UD kaydı
+// taşınır. SPT sekmesinde elle düzeltilmiş SPT aralıkları (spt_araliklari) değişmez.
+function aralikDegisikligi(manevralar, sira, yeniBas, yeniBit, bitisikler) {
+  if (yeniBas < 0) return { hata: "Başlangıç negatif olamaz." };
+  if (r2(yeniBit - yeniBas) <= 0) return { hata: "Bitiş, başlangıçtan büyük olmalı." };
+  const yeni = manevralar.map((m) => [...m]);
+  const eskiBas = yeni[sira][0], eskiBit = yeni[sira][1];
+  yeni[sira][0] = yaziya(yeniBas);
+  yeni[sira][1] = yaziya(yeniBit);
+  if (bitisikler) {
+    if (sira > 0 && yeni[sira - 1][1] === eskiBas) yeni[sira - 1][1] = yeni[sira][0];
+    if (sira + 1 < yeni.length && yeni[sira + 1][0] === eskiBit) yeni[sira + 1][0] = yeni[sira][1];
+  }
+  for (let i = 0; i < yeni.length; i++) {
+    const [bas, bit, tip] = yeni[i];
+    if (r2(sayiya(bit) - sayiya(bas)) <= 0) return { hata: `${bas}-${bit} (${tip}) manevrasının uzunluğu sıfır ya da eksi olur.` };
+    if (i > 0 && r2(sayiya(bas) - sayiya(yeni[i - 1][1])) < 0) {
+      return { hata: `${yeni[i - 1][0]}-${yeni[i - 1][1]} (${yeni[i - 1][2]}) ile ${bas}-${bit} (${tip}) üst üste biniyor. Bitişik manevraları da kaydırmayı deneyin.` };
+    }
+  }
+  return { yeni };
+}
+
+function aralikUzunlugu(aralik) {
+  const [bas, bit] = aralik.split("-");
+  return r2(sayiya(bit) - sayiya(bas));
+}
+
+function tcrSonuclariniTasi(sonuclar, aralikTasima) {
+  const yeniSonuclar = [], notlar = [];
+  let silinen = false;
+  for (const sonuc of sonuclar) {
+    const yeniAralik = aralikTasima[sonuc[0]];
+    if (!yeniAralik) { yeniSonuclar.push(sonuc); continue; }
+    const oran = aralikUzunlugu(sonuc[0]) / aralikUzunlugu(yeniAralik);
+    const yuzdeler = sonuc.slice(1, 4).map((d) => pyRound(Number(d) * oran));
+    if (Math.max(...yuzdeler) > 100) {
+      notlar.push(`${yeniAralik} TCR sonucu silindi (yeniden ölçün)`);
+      silinen = true;
+      continue;
+    }
+    yeniSonuclar.push([yeniAralik, ...yuzdeler]);
+    if (yuzdeler.some((y, i) => y !== pyRound(Number(sonuc[i + 1])))) {
+      notlar.push(`${yeniAralik} TCR/SCR/RQD: ${yuzdeler.map((y) => "%" + y).join(" / ")}`);
+    }
+  }
+  return { yeniSonuclar, notlar, silinen };
+}
+
+let duzenlenenSira = -1;
+
+function manevraDuzenleAc(sira) {
+  const [bas, bit, tip] = veri.manevralar[sira];
+  duzenlenenSira = sira;
+  $("aralik-baslik").textContent = `Aralığı Düzenle — ${tip}`;
+  $("aralik-bilgi").textContent = `Şimdiki aralık ${bas}-${bit} m. Numune tipi ve adı değişmez; SPT değerleri bu numuneye bağlı kalır.`;
+  $("aralik-bas").value = bas;
+  $("aralik-bit").value = bit;
+  const onceki = veri.manevralar[sira - 1], sonraki = veri.manevralar[sira + 1];
+  const komsular = [];
+  if (onceki && onceki[1] === bas) komsular.push(`önceki ${onceki[2]} manevrasının bitişi`);
+  if (sonraki && sonraki[0] === bit) komsular.push(`sonraki ${sonraki[2]} manevrasının başlangıcı`);
+  $("aralik-bitisik-satir").hidden = !komsular.length;
+  $("aralik-bitisik").checked = komsular.length > 0;
+  $("aralik-bitisik-metin").textContent = `Bitişik manevraları da kaydır (${komsular.join(" ve ")})`;
+  $("aralik-hata").hidden = true;
+  ["aralik-bas", "aralik-bit"].forEach((k) => $(k).classList.remove("hatali"));
+  $("aralik-duzen").hidden = false;
+}
+
+function manevraDuzenleKapat() {
+  $("aralik-duzen").hidden = true;
+  duzenlenenSira = -1;
+}
+
+function manevraAraliginiKaydet() {
+  const sira = duzenlenenSira;
+  if (sira < 0 || !veri.manevralar[sira]) return manevraDuzenleKapat();
+  const hataYaz = (metin, kimlik) => {
+    $("aralik-hata").textContent = metin;
+    $("aralik-hata").hidden = false;
+    if (kimlik) $(kimlik).classList.add("hatali");
+  };
+  ["aralik-bas", "aralik-bit"].forEach((k) => $(k).classList.remove("hatali"));
+  const yeniBas = sayiya($("aralik-bas").value), yeniBit = sayiya($("aralik-bit").value);
+  if (yeniBas === null) return hataYaz("Başlangıcı sayı olarak yazın (ör. 21,00).", "aralik-bas");
+  if (yeniBit === null) return hataYaz("Bitişi sayı olarak yazın (ör. 21,45).", "aralik-bit");
+  const [eskiBas, eskiBit] = veri.manevralar[sira];
+  if (yaziya(r2(yeniBas)) === eskiBas && yaziya(r2(yeniBit)) === eskiBit) return manevraDuzenleKapat();
+  const sonuc = aralikDegisikligi(veri.manevralar, sira, r2(yeniBas), r2(yeniBit), $("aralik-bitisik").checked);
+  if (sonuc.hata) return hataYaz(sonuc.hata);
+  // eski aralık -> yeni aralık (değişen her manevra için)
+  const tasima = {}, aralikTasima = {};
+  veri.manevralar.forEach((eski, i) => {
+    const yeni = sonuc.yeni[i];
+    if (eski[0] !== yeni[0] || eski[1] !== yeni[1]) {
+      tasima[`${eski[0]}|${eski[1]}`] = [yeni[0], yeni[1]];
+      aralikTasima[`${eski[0]}-${eski[1]}`] = `${yeni[0]}-${yeni[1]}`;
+    }
+  });
+  const tcr = tcrSonuclariniTasi(veri.tcr_sonuclari, aralikTasima);
+  veri.manevralar = sonuc.yeni;
+  veri.tcr_sonuclari = tcr.yeniSonuclar;
+  veri.ud_listesi = veri.ud_listesi.map(([bas, bit, ad]) => [...(tasima[`${bas}|${bit}`] || [bas, bit]), ad]);
+  oneriyiHesapla();
+  kaydet();
+  manevraDuzenleKapat();
+  hepsiniCiz();
+  const [bas, bit, tip] = veri.manevralar[sira];
+  const ek = Object.keys(tasima).length > 1 ? ` (+${Object.keys(tasima).length - 1} bitişik)` : "";
+  durumYaz(`Aralık güncellendi: ${tip} → ${bas}-${bit} m${ek}${tcr.notlar.map((n) => " · " + n).join("")}`);
+  if (tcr.silinen) {
+    sor("TCR / SCR / RQD", "Aralığı değişen bir karot manevrasının ölçülen karotu yeni boyundan uzun kalıyor; bu yüzden sonucu silindi. Kaya Özellikleri sekmesinden yeniden girin.\n\n"
+      + tcr.notlar.join("\n"), [["Tamam", true, true]]);
+  }
+}
+
 function oneriyiHesapla() {
   const son = veri.manevralar[veri.manevralar.length - 1];
   oneri = son ? sonrakiOneri(sayiya(son[1]), son[2], durumuHesapla(veri.manevralar)) : { baslangic: "0,00", bitis: "1,50" };
@@ -383,7 +503,7 @@ function manevraCiz() {
   $("giris-bitis").value = oneri.bitis;
   satirlariCiz($("tablo-manevra"), ["Başlangıç", "Bitiş", "Numune"],
     veri.manevralar.map(([bas, bit, tip]) => ({ hucreler: [bas, bit, tip], sinif: kayittakiTip(tip).toLowerCase() })),
-    "Henüz manevra yok");
+    "Henüz manevra yok").forEach((satir, i) => satir.addEventListener("click", () => manevraDuzenleAc(i)));
   const tablo = $("tablo-manevra");
   tablo.lastElementChild?.scrollIntoView?.({ block: "nearest" });
   derinlikCiz();
@@ -2727,6 +2847,10 @@ function baglantilariKur() {
   $("spt-secim").onchange = sptKutulariniDoldur;
   $("dugme-spt-kaydet").onclick = sptKaydet;
   $("dugme-spt-sil").onclick = sptSil;
+  $("aralik-kaydet").onclick = manevraAraliginiKaydet;
+  $("aralik-vazgec").onclick = manevraDuzenleKapat;
+  $("aralik-duzen").onclick = (olay) => { if (olay.target === $("aralik-duzen")) manevraDuzenleKapat(); };
+  $("aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") manevraAraliginiKaydet(); });
   $("dugme-spt-aralik-kaydet").onclick = () => sptAraliginiKaydet();
   $("dugme-spt-aralik-sifirla").onclick = () => sptAraliginiKaydet(true);
   $("spt-aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") sptAraliginiKaydet(); });
@@ -2784,7 +2908,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v26";
+const SURUM = "v27";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.

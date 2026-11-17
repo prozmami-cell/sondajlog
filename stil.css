@@ -343,5 +343,12 @@ main { position: relative; overflow-x: clip; }
 .soru-baslik { font-weight: 700; font-size: 17px; margin-bottom: 6px; }
 .soru-metin { color: var(--soluk); font-size: 15px; white-space: pre-line; margin-bottom: 14px; }
 .soru-dugmeler { display: flex; flex-direction: column; gap: 8px; }
+/* manevra aralığı düzenleme penceresi */
+.onay { display: flex; align-items: flex-start; gap: 10px; margin: 6px 0 4px; font-size: 14px; color: var(--yazi); }
+.onay input { width: 22px; height: 22px; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--vurgu); box-shadow: none;
+  border: 0; border-radius: 4px; -webkit-appearance: checkbox; appearance: auto; }  /* genel input kuralı görünümü siliyor */
+.aralik-hata { color: var(--hata); font-size: 14px; margin: 6px 0 10px; }
+#aralik-duzen .soru-dugmeler { margin-top: 12px; }
+#tablo-manevra .satir:not(.baslik) { cursor: pointer; }
 
 [hidden] { display: none !important; }

@@ -94,7 +94,7 @@
     </div>
 
     <div class="liste-baslik">
-      <span>Manevralar</span>
+      <span>Manevralar <span class="ipucu">aralığı düzenlemek için satıra dokunun</span></span>
       <button class="kucuk" data-kopyala="manevra">Kopyala</button>
     </div>
     <div class="tablo" id="tablo-manevra"></div>
@@ -379,6 +379,23 @@
 </div>
 
 <!-- SORU -->
+<div class="soru-zemin" id="aralik-duzen" hidden>
+  <div class="soru-kutu">
+    <div class="soru-baslik" id="aralik-baslik">Aralığı Düzenle</div>
+    <div class="soru-metin" id="aralik-bilgi"></div>
+    <div class="iki">
+      <label>Başlangıç (m)<input id="aralik-bas" inputmode="decimal" autocomplete="off"></label>
+      <label>Bitiş (m)<input id="aralik-bit" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+    </div>
+    <label class="onay" id="aralik-bitisik-satir"><input type="checkbox" id="aralik-bitisik" checked><span id="aralik-bitisik-metin"></span></label>
+    <div class="aralik-hata" id="aralik-hata" hidden></div>
+    <div class="soru-dugmeler">
+      <button class="ana" id="aralik-kaydet">Kaydet</button>
+      <button id="aralik-vazgec">Vazgeç</button>
+    </div>
+  </div>
+</div>
+
 <div class="soru-zemin" id="soru" hidden>
   <div class="soru-kutu">
     <div class="soru-baslik" id="soru-baslik"></div>
