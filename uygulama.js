@@ -1422,6 +1422,288 @@ async function motoruHazirla() {
   }
 }
 
+// ---------- Makine Metrajı ----------
+// Masaüstündeki "Makine Metrajı" sayfasının telefondaki karşılığı: makinelerin aylık kuyu metrajları. Kayıtlar bu
+// telefonda (localStorage) kuyu dosyalarından ayrı tutulur. Excel, masaüstündekiyle aynı düzende üretilir.
+const DEPO_MAKINE = "sondajlog.makine";
+const MAKINELER = ["HANJİN", "TSM-750"];
+const USTALAR = ["ENGİN YAVUZ", "AYHAN ÖZBAY"];
+const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const VARSAYILAN_PROJE = "ANTALYA-ALANYA OTOYOL PROJESİ";
+const DEVAM_EDIYOR = "DEVAM EDİYOR";
+const EXCEL_EN_AZ_SATIR = 27;
+const makineDurumu = { yil: new Date().getFullYear(), ay: new Date().getMonth() + 1, duzenlenen: null };
+
+function makineVerisi() {
+  const v = depoOku(DEPO_MAKINE, {});
+  return {
+    kayitlar: Array.isArray(v.kayitlar) ? v.kayitlar.filter((k) => k && k.kimlik) : [],
+    makine: MAKINELER.includes(v.makine) ? v.makine : MAKINELER[0],
+    usta: USTALAR.includes(v.usta) ? v.usta : USTALAR[0],
+    proje: typeof v.proje === "string" && v.proje.trim() ? v.proje : VARSAYILAN_PROJE,
+  };
+}
+
+function makineYaz(degisiklik) {
+  return depoYaz(DEPO_MAKINE, { ...makineVerisi(), ...degisiklik });
+}
+
+const makineAyAnahtari = () => `${makineDurumu.yil}-${String(makineDurumu.ay).padStart(2, "0")}`;
+const makineAyYazisi = () => `${AY_ADLARI[makineDurumu.ay - 1]} ${makineDurumu.yil}`;
+
+// "gg.aa.yyyy" -> [yıl, ay, gün]; geçersizse null
+function makineTarihCoz(yazi) {
+  const m = String(yazi || "").trim().match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+  if (!m) return null;
+  const [gun, ay, yil] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const t = new Date(Date.UTC(yil, ay - 1, gun));
+  return t.getUTCFullYear() === yil && t.getUTCMonth() === ay - 1 && t.getUTCDate() === gun && yil >= 1900 ? [yil, ay, gun] : null;
+}
+
+const makineTarihYazisi = (t) => (t ? `${t[2]}.${String(t[1]).padStart(2, "0")}.${t[0]}` : "");
+const makineTarihSirasi = (t) => (t ? t[0] * 10000 + t[1] * 100 + t[2] : 99999999);
+
+function noktaliTarihBicimle(kutu) {
+  const rakam = kutu.value.replace(/\D/g, "").slice(0, 8);
+  const yeni = [rakam.slice(0, 2), rakam.slice(2, 4), rakam.slice(4)].filter(Boolean).join(".");
+  if (yeni !== kutu.value) kutu.value = yeni;
+}
+
+function makineMetrajOku(yazi) {
+  if (!String(yazi).trim()) return { deger: null };
+  const sayi = sayiya(yazi);
+  return sayi === null || sayi < 0 ? { hata: true } : { deger: r2(sayi) };
+}
+
+function gosterilenMakineKayitlari() {
+  const { kayitlar, makine } = makineVerisi();
+  return kayitlar.filter((k) => k.ay === makineAyAnahtari() && k.makine === makine)
+    .sort((a, b) => makineTarihSirasi(makineTarihCoz(a.baslama)) - makineTarihSirasi(makineTarihCoz(b.baslama)) || String(a.kuyu).localeCompare(String(b.kuyu), "tr"));
+}
+
+const makineMetrajYazisi = (sayi) => (sayi === null || sayi === undefined || sayi === "" ? "" : yaziya(Number(sayi)));
+
+function makineCiz() {
+  const v = makineVerisi();
+  $("makine-secim").value = v.makine;
+  $("usta-secim").value = v.usta;
+  if (document.activeElement !== $("makine-proje")) $("makine-proje").value = v.proje;
+  $("makine-ay-yazi").textContent = makineAyYazisi();
+  $("makine-ay-girdi").value = makineAyAnahtari();
+  const kayitlar = gosterilenMakineKayitlari();
+  const toplam = r2(kayitlar.reduce((t, k) => t + (Number(k.yapilan) || 0), 0));
+  const satirlar = satirlariCiz($("tablo-makine"), ["Kuyu", "Başlama", "Bitiş", "Öner.", "Yapılan"],
+    kayitlar.map((k) => ({
+      hucreler: [k.kuyu, k.baslama, k.bitis || "devam", makineMetrajYazisi(k.onerilen), makineMetrajYazisi(k.yapilan)],
+      sinif: k.kimlik === makineDurumu.duzenlenen ? "secili" : "",
+      not: k.usta ? `Usta: ${k.usta}` : "",
+    })), "Bu ay için bu makinede kayıt yok");
+  satirlar.forEach((satir, i) => satir.addEventListener("click", () => makineDuzenle(kayitlar[i].kimlik)));
+  const toplamSatir = Object.assign(document.createElement("div"), { className: "satir makine-toplam" });
+  ["TOPLAM METRAJ", "", "", "", yaziya(toplam)].forEach((h) => toplamSatir.appendChild(Object.assign(document.createElement("span"), { textContent: h })));
+  $("tablo-makine").appendChild(toplamSatir);
+  $("makine-bilgi").textContent = `${v.makine} · ${makineAyYazisi()} · ${kayitlar.length} kuyu`;
+}
+
+function makineFormuTemizle() {
+  makineDurumu.duzenlenen = null;
+  for (const k of ["baslama", "bitis", "kuyu", "onerilen", "yapilan"]) { $("makine-" + k).value = ""; $("makine-" + k).classList.remove("hatali"); }
+  $("dugme-makine-ekle").textContent = "Ekle";
+  $("dugme-makine-sil").hidden = true;
+}
+
+function makineDuzenle(kimlik) {
+  const kayit = makineVerisi().kayitlar.find((k) => k.kimlik === kimlik);
+  if (!kayit) return;
+  makineDurumu.duzenlenen = kimlik;
+  $("makine-baslama").value = kayit.baslama || "";
+  $("makine-bitis").value = kayit.bitis || "";
+  $("makine-kuyu").value = kayit.kuyu || "";
+  $("makine-onerilen").value = makineMetrajYazisi(kayit.onerilen);
+  $("makine-yapilan").value = makineMetrajYazisi(kayit.yapilan);
+  if (USTALAR.includes(kayit.usta)) makineYaz({ usta: kayit.usta });
+  $("dugme-makine-ekle").textContent = "Güncelle";
+  $("dugme-makine-sil").hidden = false;
+  makineCiz();
+  $("makine-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  durumYaz(`${kayit.kuyu} düzenleniyor; değiştirip Güncelle'ye basın`);
+}
+
+function makineKaydet() {
+  const baslama = makineTarihCoz($("makine-baslama").value);
+  if (!baslama) return hataGoster("Başlama tarihini gg.aa.yyyy olarak yazın (ör. 03.11.2026).", "makine-baslama");
+  const bitisYazi = $("makine-bitis").value.trim();
+  const bitis = bitisYazi ? makineTarihCoz(bitisYazi) : null;
+  if (bitisYazi && !bitis) return hataGoster("Bitiş tarihi geçersiz. Kuyu sürüyorsa boş bırakın (DEVAM EDİYOR).", "makine-bitis");
+  if (bitis && makineTarihSirasi(bitis) < makineTarihSirasi(baslama)) return hataGoster("Bitiş tarihi başlama tarihinden önce olamaz.", "makine-bitis");
+  const kuyu = $("makine-kuyu").value.trim().toLocaleUpperCase("tr-TR");
+  if (!kuyu) return hataGoster("Kuyu adını yazın.", "makine-kuyu");
+  const onerilen = makineMetrajOku($("makine-onerilen").value), yapilan = makineMetrajOku($("makine-yapilan").value);
+  if (onerilen.hata) return hataGoster("Önerilen metraj bir sayı olmalı (ör. 35,00).", "makine-onerilen");
+  if (yapilan.hata) return hataGoster("Yapılan metraj bir sayı olmalı (ör. 35,00).", "makine-yapilan");
+  const v = makineVerisi();
+  const kayit = { ay: makineAyAnahtari(), makine: v.makine, usta: v.usta, baslama: makineTarihYazisi(baslama), bitis: makineTarihYazisi(bitis),
+    kuyu, onerilen: onerilen.deger, yapilan: yapilan.deger };
+  const eski = v.kayitlar.find((k) => k.kimlik === makineDurumu.duzenlenen);
+  let kayitlar;
+  if (eski) kayitlar = v.kayitlar.map((k) => (k === eski ? { ...eski, ...kayit, ay: eski.ay } : k));  // kendi ayında kalır
+  else kayitlar = [...v.kayitlar, { ...kayit, kimlik: yeniKimlik() }];
+  if (!makineYaz({ kayitlar })) return hataGoster("Kayıt yazılamadı; telefonda yer kalmamış olabilir.");
+  makineFormuTemizle();
+  makineCiz();
+  durumYaz(`${kuyu} ${eski ? "güncellendi" : "eklendi"}`);
+}
+
+async function makineSil() {
+  const v = makineVerisi(), kayit = v.kayitlar.find((k) => k.kimlik === makineDurumu.duzenlenen);
+  if (!kayit) return;
+  const cevap = await sor("Satırı sil", `${kayit.kuyu} satırı silinsin mi?`, [["Sil", true, true], ["Vazgeç", false]]);
+  if (!cevap) return;
+  if (!makineYaz({ kayitlar: v.kayitlar.filter((k) => k !== kayit) })) return hataGoster("Kayıt yazılamadı.");
+  makineFormuTemizle();
+  makineCiz();
+  durumYaz(`${kayit.kuyu} silindi`);
+}
+
+function makineAyKaydir(adim) {
+  const toplam = makineDurumu.yil * 12 + makineDurumu.ay - 1 + adim;
+  makineDurumu.yil = Math.floor(toplam / 12);
+  makineDurumu.ay = (toplam % 12) + 1;
+  makineFormuTemizle();
+  makineCiz();
+}
+
+// --- Excel (.xlsx): sıkıştırmasız ZIP içinde birkaç XML dosyası ---
+const xmlKacis = (yazi) => String(yazi).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function makineExcelXml(kayitlar, makine, proje) {
+  const sutunlar = "ABCDEF";
+  const satirlar = [];
+  const hucre = (sutun, satir, stil, icerik = "") => `<c r="${sutun}${satir}" s="${stil}"${icerik}`;
+  const yazi = (sutun, satir, stil, metin) => `${hucre(sutun, satir, stil, ' t="inlineStr"')}><is><t xml:space="preserve">${xmlKacis(metin)}</t></is></c>`;
+  const sayi = (sutun, satir, stil, deger) => `${hucre(sutun, satir, stil)}><v>${deger}</v></c>`;
+  const bos = (sutun, satir, stil) => `${hucre(sutun, satir, stil)}/>`;
+  const tarihSeri = (t) => (Date.UTC(t[0], t[1] - 1, t[2]) - Date.UTC(1899, 11, 30)) / 86400000;
+  // 1-2: lacivert başlıklar (A:F birleşik), 3: sütun başlıkları
+  for (const [no, metin] of [[1, proje], [2, `${makine} · ${makineAyYazisi().toLocaleUpperCase("tr-TR")}`]]) {
+    satirlar.push(`<row r="${no}">${yazi("A", no, 1, metin)}${[..."BCDEF"].map((s) => bos(s, no, 1)).join("")}</row>`);
+  }
+  const basliklar = ["BAŞLAMA TARİHİ", "BİTİŞ TARİHİ", "KUYU ADI", "USTA", "ÖNERİLEN METRAJ", "YAPILAN METRAJ"];
+  satirlar.push(`<row r="3">${basliklar.map((b, i) => yazi(sutunlar[i], 3, 2, b)).join("")}</row>`);
+  const ilk = 4, adet = Math.max(kayitlar.length, EXCEL_EN_AZ_SATIR);
+  for (let i = 0; i < adet; i++) {
+    const no = ilk + i, k = kayitlar[i];
+    if (!k) { satirlar.push(`<row r="${no}">${[...sutunlar].map((s) => bos(s, no, 3)).join("")}</row>`); continue; }
+    const bas = makineTarihCoz(k.baslama), bit = makineTarihCoz(k.bitis);
+    const metraj = (s, d) => (d === null || d === undefined || d === "" ? bos(s, no, 5) : sayi(s, no, 5, Number(d)));
+    satirlar.push(`<row r="${no}">${bas ? sayi("A", no, 4, tarihSeri(bas)) : yazi("A", no, 3, k.baslama || "")}`
+      + `${bit ? sayi("B", no, 4, tarihSeri(bit)) : yazi("B", no, 3, DEVAM_EDIYOR)}${yazi("C", no, 3, k.kuyu || "")}${yazi("D", no, 3, k.usta || "")}`
+      + `${metraj("E", k.onerilen)}${metraj("F", k.yapilan)}</row>`);
+  }
+  const t = ilk + adet;
+  satirlar.push(`<row r="${t}">${yazi("A", t, 6, "TOPLAM METRAJ")}${[..."BCDE"].map((s) => bos(s, t, 8)).join("")}`
+    + `<c r="F${t}" s="7"><f>SUM(F${ilk}:F${t - 1})</f></c></row>`);
+  const sayfa = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols>${[20, 20, 20, 18, 20, 20].map((g, i) => `<col min="${i + 1}" max="${i + 1}" width="${g}" customWidth="1"/>`).join("")}</cols>
+<sheetData>${satirlar.join("")}</sheetData>
+<mergeCells count="2"><mergeCell ref="A1:F1"/><mergeCell ref="A2:F2"/></mergeCells>
+<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
+</worksheet>`;
+  const stiller = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="d.mm.yyyy"/></numFmts>
+<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="9">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="2" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" indent="1"/></xf>
+<xf numFmtId="2" fontId="2" fillId="2" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+  const sayfaAdi = `${makine} ${AY_ADLARI[makineDurumu.ay - 1]}`.replace(/[\[\]:*?/\\]/g, "").slice(0, 31);
+  return {
+    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlKacis(sayfaAdi)}" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`,
+    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml": stiller,
+    "xl/worksheets/sheet1.xml": sayfa,
+  };
+}
+
+async function makineExcelIndir() {
+  const v = makineVerisi();
+  const kayitlar = gosterilenMakineKayitlari();
+  const proje = (v.proje || VARSAYILAN_PROJE).trim().toLocaleUpperCase("tr-TR");
+  const parcalar = makineExcelXml(kayitlar, v.makine, proje);
+  const xlsx = await zipOlustur(Object.entries(parcalar).map(([ad, metin]) => ({ ad, blob: new Blob([metin], { type: "application/xml" }) })));
+  const ad = `Makine Metrajı - ${v.makine} - ${makineAyYazisi()}.xlsx`;
+  const dosya = new File([xlsx], ad, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
+    try {
+      await navigator.share({ files: [dosya], title: ad });
+      durumYaz("Excel hazır: " + ad);
+    } catch (hata) {
+      if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+    }
+    return;
+  }
+  const baglanti = Object.assign(document.createElement("a"), { href: URL.createObjectURL(dosya), download: ad });
+  baglanti.click();
+  setTimeout(() => URL.revokeObjectURL(baglanti.href), 10000);
+  durumYaz("İndirildi: " + ad);
+}
+
+function makineAc() {
+  katmaniKapat("katman-kuyular");
+  katmaniAc("katman-makine");
+  makineFormuTemizle();
+  makineCiz();
+}
+
+function makineBagla() {
+  for (const [secim, liste] of [["makine-secim", MAKINELER], ["usta-secim", USTALAR]]) {
+    for (const ad of liste) $(secim).appendChild(new Option(ad, ad));
+  }
+  $("makine-secim").onchange = () => { makineYaz({ makine: $("makine-secim").value }); makineFormuTemizle(); makineCiz(); };
+  $("usta-secim").onchange = () => makineYaz({ usta: $("usta-secim").value });
+  $("makine-proje").addEventListener("change", () => makineYaz({ proje: $("makine-proje").value.trim() || VARSAYILAN_PROJE }));
+  $("makine-ay-geri").onclick = () => makineAyKaydir(-1);
+  $("makine-ay-ileri").onclick = () => makineAyKaydir(1);
+  $("makine-ay-girdi").onchange = () => {
+    const m = $("makine-ay-girdi").value.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return;
+    makineDurumu.yil = Number(m[1]);
+    makineDurumu.ay = Number(m[2]);
+    makineFormuTemizle();
+    makineCiz();
+  };
+  for (const k of ["makine-baslama", "makine-bitis"]) $(k).addEventListener("input", () => noktaliTarihBicimle($(k)));
+  $("dugme-makine-ekle").onclick = makineKaydet;
+  $("dugme-makine-temizle").onclick = () => { makineFormuTemizle(); makineCiz(); };
+  $("dugme-makine-sil").onclick = makineSil;
+  $("makine-yapilan").addEventListener("keydown", (olay) => { if (olay.key === "Enter") makineKaydet(); });
+  $("dugme-makine-excel").onclick = makineExcelIndir;
+  $("dugme-makine-excel-alt").onclick = makineExcelIndir;
+  $("menu-makine").onclick = makineAc;
+  $("menu-fotolar").onclick = () => { katmaniKapat("katman-kuyular"); fotolariAc(); };
+}
+
 // ---------- Kuyu fotoğrafları ----------
 // Makine lokasyonu, makine, sandık ve kuyu betonu fotoğrafları bu telefonda IndexedDB'de kuyuyla (aktifKimlik) birlikte
 // saklanır; localStorage'a sığmazlar. Her fotoğrafın küçük bir önizlemesi de saklanır, ekranda yalnızca o çizilir
@@ -3096,6 +3378,7 @@ function baglantilariKur() {
   $("dugme-spt-kaydet").onclick = sptKaydet;
   $("dugme-spt-sil").onclick = sptSil;
   $("aralik-kaydet").onclick = manevraAraliginiKaydet;
+  makineBagla();
   $("dugme-kuyu-fotolari").onclick = fotolariAc;
   $("dugme-foto-zip").onclick = fotoZipPaylas;
   $("dugme-foto-zip-ust").onclick = fotoZipPaylas;
@@ -3163,7 +3446,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v29";
+const SURUM = "v30";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.

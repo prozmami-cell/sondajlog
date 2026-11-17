@@ -293,10 +293,60 @@
     <button class="metin" id="dugme-yeni-kuyu">Yeni</button>
   </div>
   <div class="katman-govde">
+    <div class="menu-sayfalar">
+      <button id="menu-makine"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Makine Metrajı</button>
+      <button id="menu-fotolar"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Kuyu Fotoğrafları</button>
+    </div>
+    <div class="liste-baslik"><span>Kuyular</span></div>
     <div id="kuyu-listesi"></div>
     <label class="dosya-dugmesi genis">Dosyadan Aç (.json)<input type="file" accept=".json,application/json" id="dosya-ac" hidden></label>
     <p class="aciklama">Kayıtlar bu telefonda otomatik saklanır.</p>
     <p class="aciklama"><b>Bilgisayara anında göndermek için:</b> üstteki <b>Kaydet</b> düğmesi → <b>Dosyalara Kaydet</b> → OneDrive › <b>Logvera</b> klasörü → Kaydet. Aynı adlı dosya varsa <b>Değiştir</b>'i seçin. Bilgisayardaki Logvera'da "Telefonu İzle" açıksa kuyu kendiliğinden güncellenir.</p>
+  </div>
+</div>
+
+<!-- MAKİNE METRAJI -->
+<div class="katman" id="katman-makine" hidden>
+  <div class="katman-ust">
+    <button class="metin" data-kapat>Kapat</button>
+    <div class="katman-baslik">Makine Metrajı</div>
+    <button class="metin" id="dugme-makine-excel">Excel</button>
+  </div>
+  <div class="katman-govde">
+    <div class="makine-ay">
+      <button class="kucuk" id="makine-ay-geri" aria-label="Önceki ay">‹</button>
+      <label class="makine-ay-etiket"><span id="makine-ay-yazi"></span><input type="month" id="makine-ay-girdi" aria-label="Ay seç"></label>
+      <button class="kucuk" id="makine-ay-ileri" aria-label="Sonraki ay">›</button>
+    </div>
+    <div class="kart">
+      <div class="kart-baslik">Makine ve usta</div>
+      <div class="iki">
+        <label>Makine<select id="makine-secim"></select></label>
+        <label>Kullanan usta<select id="usta-secim"></select></label>
+      </div>
+      <label>Proje (Excel başlığı)<input id="makine-proje" autocomplete="off"></label>
+    </div>
+    <div class="kart" id="makine-form">
+      <div class="kart-baslik">Kuyu metrajı <span class="ipucu">Kuyu sürüyorsa bitişi boş bırakın (DEVAM EDİYOR). Düzenlemek için satıra dokunun.</span></div>
+      <div class="iki">
+        <label>Başlama tarihi<input id="makine-baslama" inputmode="numeric" maxlength="10" placeholder="gg.aa.yyyy" autocomplete="off"></label>
+        <label>Bitiş tarihi<input id="makine-bitis" inputmode="numeric" maxlength="10" placeholder="gg.aa.yyyy" autocomplete="off"></label>
+      </div>
+      <label>Kuyu adı<input id="makine-kuyu" autocomplete="off" autocapitalize="characters"></label>
+      <div class="iki">
+        <label>Önerilen metraj (m)<input id="makine-onerilen" inputmode="decimal" autocomplete="off"></label>
+        <label>Yapılan metraj (m)<input id="makine-yapilan" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-makine-ekle">Ekle</button>
+        <button id="dugme-makine-temizle">Temizle</button>
+        <button id="dugme-makine-sil" hidden>Sil</button>
+      </div>
+    </div>
+    <div class="liste-baslik"><span id="makine-bilgi"></span></div>
+    <div class="tablo" id="tablo-makine"></div>
+    <button class="ana genis" id="dugme-makine-excel-alt">Excel Olarak İndir / Paylaş</button>
+    <p class="aciklama" style="margin-top: 10px">Kayıtlar bu telefonda saklanır; bilgisayardaki Makine Metrajı sayfasından ayrıdır.</p>
   </div>
 </div>
 

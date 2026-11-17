@@ -209,6 +209,21 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 
 /* Fotoğraf kuyruğu */
 #foto-kuyrugu { margin-top: 10px; }
+/* ☰ menüdeki sayfalar */
+.menu-sayfalar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.menu-sayfalar button { flex-direction: column; gap: 6px; min-height: 76px; background: var(--kart); border: 1px solid var(--cizgi); font-weight: 600; }
+.menu-sayfalar svg { width: 24px; height: 24px; color: var(--vurgu); }
+/* Makine metrajı */
+.makine-ay { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.makine-ay button { min-width: 44px; font-size: 20px; }
+.makine-ay-etiket { position: relative; flex: 1; margin: 0; min-height: 44px; display: flex; align-items: center; justify-content: center;
+  background: var(--kart); border: 1px solid var(--cizgi); border-radius: 10px; font-size: 17px; font-weight: 700; color: var(--yazi); }
+.makine-ay-etiket input { position: absolute; inset: 0; opacity: 0; margin: 0; min-height: 0; height: 100%; }  /* dokununca ay seçici açılır */
+#tablo-makine .satir { grid-template-columns: 1.5fr 1.25fr 1.25fr .9fr 1fr; text-align: center; font-size: 14px; }
+#tablo-makine .satir:not(.baslik):not(.makine-toplam) { cursor: pointer; }
+#tablo-makine .satir .not { color: var(--soluk); text-align: left; }
+.satir.makine-toplam { background: #1F4E78; color: #fff; font-weight: 700; }
+.satir.makine-toplam span:first-child { grid-column: 1 / 4; text-align: left; }
 /* Kuyu fotoğrafları */
 .foto-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin: 4px 0 10px; }
 .foto-izgara:empty { display: none; }
