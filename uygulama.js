@@ -82,7 +82,7 @@ function kaydet() {
 function kaydetIsaretiniCiz() {
   const kayit = kuyular[aktifKimlik];
   const bekleyen = !!kayit && ((kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length + (kayit.veri.ud_listesi || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme)
-    || aktarilmamisFoto > 0);  // bilgisayara gitmemiş fotoğraf da bekleyen sayılır
+    || aktarilmamisFoto > 0 || makineBekliyor());  // bilgisayara gitmemiş fotoğraf / makine metrajı da bekleyen sayılır
   $("kaydet-isareti").hidden = !bekleyen;
 }
 
@@ -1128,25 +1128,27 @@ async function paylas() {
       if (yeniFotolar.length) {
         durumYaz("Fotoğraflar hazırlanıyor…");
         const { zip } = await fotoZipiHazirla(kuyuAdi, tumu, yeniFotolar);
-        const z = new Date(), iki = (n) => String(n).padStart(2, "0");
-        const zaman = `${z.getFullYear()}-${iki(z.getMonth() + 1)}-${iki(z.getDate())} ${iki(z.getHours())}${iki(z.getMinutes())}${iki(z.getSeconds())}`;
-        dosyalar.push(new File([zip], `${kuyuAdi} Fotoğrafları ${zaman}.zip`, { type: "application/zip" }));
+        dosyalar.push(new File([zip], `${kuyuAdi} Fotoğrafları ${dosyaZamani()}.zip`, { type: "application/zip" }));
       }
     } catch (hata) {
       yeniFotolar = [];
       durumYaz("Fotoğraflar eklenemedi: " + (hata?.message || hata));
     }
   }
+  const makineGidecek = makineBekliyor();
+  if (makineGidecek) dosyalar.push(await makineAktarimDosyasi());
   if (dosyalar.length > 1 && !(navigator.canShare && navigator.canShare({ files: dosyalar }))) {
-    dosyalar = [dosya];  // iki dosya birlikte paylaşılamıyorsa yalnız kuyu dosyası
+    dosyalar = [dosya];  // birden çok dosya birlikte paylaşılamıyorsa yalnız kuyu dosyası
     yeniFotolar = [];
   }
+  const makineGitti = dosyalar.some((d) => d.name.startsWith("Makine Metrajı "));
   if (navigator.canShare && navigator.canShare({ files: dosyalar })) {
     try {
       await navigator.share({ files: dosyalar, title: dosyaAdi() });
       disaAktarildi();
       if (yeniFotolar.length) await fotolariAktarildiYap(yeniFotolar);
-      durumYaz("Kaydedildi: " + dosyaAdi() + (yeniFotolar.length ? ` + ${yeniFotolar.length} fotoğraf` : ""));
+      if (makineGitti) makineAktarildi();
+      durumYaz("Kaydedildi: " + dosyaAdi() + (yeniFotolar.length ? ` + ${yeniFotolar.length} fotoğraf` : "") + (makineGitti ? " + makine metrajı" : ""));
     } catch (hata) {
       if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
     }
@@ -1441,7 +1443,48 @@ function makineVerisi() {
     makine: MAKINELER.includes(v.makine) ? v.makine : MAKINELER[0],
     usta: USTALAR.includes(v.usta) ? v.usta : USTALAR[0],
     proje: typeof v.proje === "string" && v.proje.trim() ? v.proje : VARSAYILAN_PROJE,
+    silinenler: v.silinenler && typeof v.silinenler === "object" ? v.silinenler : {},  // {kimlik: silinme zamanı}
+    sonDegisiklik: Number(v.sonDegisiklik) || 0,
+    sonAktarim: Number(v.sonAktarim) || 0,
   };
+}
+
+// bilgisayara gitmemiş makine metrajı değişikliği var mı
+function makineBekliyor() {
+  const v = makineVerisi();
+  return v.sonDegisiklik > v.sonAktarim && (v.kayitlar.length > 0 || Object.keys(v.silinenler).length > 0);
+}
+
+const dosyaZamani = () => {
+  const z = new Date(), iki = (n) => String(n).padStart(2, "0");
+  return `${z.getFullYear()}-${iki(z.getMonth() + 1)}-${iki(z.getDate())} ${iki(z.getHours())}${iki(z.getMinutes())}${iki(z.getSeconds())}`;
+};
+
+// Bilgisayardaki Logvera "Telefonu İzle" ile alır ve kendi listesiyle birleştirir (kimlik + güncelleme zamanı)
+async function makineAktarimDosyasi() {
+  const v = makineVerisi();
+  const bilgi = new Blob([JSON.stringify({ kayitlar: v.kayitlar, silinenler: v.silinenler }, null, 2)], { type: "application/json" });
+  const zip = await zipOlustur([{ ad: "logvera_makine.json", blob: bilgi }]);
+  return new File([zip], `Makine Metrajı ${dosyaZamani()}.zip`, { type: "application/zip" });
+}
+
+function makineAktarildi() {
+  makineYaz({ sonAktarim: Date.now() });
+  kaydetIsaretiniCiz();
+}
+
+async function makineBilgisayaraGonder() {
+  const v = makineVerisi();
+  if (!v.kayitlar.length && !Object.keys(v.silinenler).length) return hataGoster("Gönderilecek makine metrajı kaydı yok.");
+  const dosya = await makineAktarimDosyasi();
+  if (!(navigator.canShare && navigator.canShare({ files: [dosya] }))) return hataGoster("Bu telefonda dosya paylaşılamıyor.");
+  try {
+    await navigator.share({ files: [dosya], title: dosya.name });
+    makineAktarildi();
+    durumYaz("Makine metrajı gönderildi (OneDrive › Logvera klasörüne kaydedin)");
+  } catch (hata) {
+    if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+  }
 }
 
 function makineYaz(degisiklik) {
@@ -1557,12 +1600,13 @@ function makineKaydet() {
   if (yapilan.hata) return hataGoster("Yapılan metraj bir sayı olmalı (ör. 35,00).", "makine-yapilan");
   const v = makineVerisi();
   const kayit = { ay: makineAyAnahtari(), makine: v.makine, usta: v.usta, baslama: makineTarihYazisi(baslama), bitis: makineTarihYazisi(bitis),
-    kuyu, onerilen: onerilen.deger, yapilan: yapilan.deger };
+    kuyu, onerilen: onerilen.deger, yapilan: yapilan.deger, guncelleme: Date.now() };
   const eski = v.kayitlar.find((k) => k.kimlik === makineDurumu.duzenlenen);
   let kayitlar;
   if (eski) kayitlar = v.kayitlar.map((k) => (k === eski ? { ...eski, ...kayit, ay: eski.ay } : k));  // kendi ayında kalır
   else kayitlar = [...v.kayitlar, { ...kayit, kimlik: yeniKimlik() }];
-  if (!makineYaz({ kayitlar })) return hataGoster("Kayıt yazılamadı; telefonda yer kalmamış olabilir.");
+  if (!makineYaz({ kayitlar, sonDegisiklik: Date.now() })) return hataGoster("Kayıt yazılamadı; telefonda yer kalmamış olabilir.");
+  kaydetIsaretiniCiz();
   makineFormuTemizle();
   makineCiz();
   durumYaz(`${kuyu} ${eski ? "güncellendi" : "eklendi"}`);
@@ -1573,7 +1617,9 @@ async function makineSil() {
   if (!kayit) return;
   const cevap = await sor("Satırı sil", `${kayit.kuyu} satırı silinsin mi?`, [["Sil", true, true], ["Vazgeç", false]]);
   if (!cevap) return;
-  if (!makineYaz({ kayitlar: v.kayitlar.filter((k) => k !== kayit) })) return hataGoster("Kayıt yazılamadı.");
+  const silinenler = { ...v.silinenler, [kayit.kimlik]: Date.now() };  // bilgisayardan da silinsin
+  if (!makineYaz({ kayitlar: v.kayitlar.filter((k) => k !== kayit), silinenler, sonDegisiklik: Date.now() })) return hataGoster("Kayıt yazılamadı.");
+  kaydetIsaretiniCiz();
   makineFormuTemizle();
   makineCiz();
   durumYaz(`${kayit.kuyu} silindi`);
@@ -1714,6 +1760,7 @@ function makineBagla() {
   $("makine-yapilan").addEventListener("keydown", (olay) => { if (olay.key === "Enter") makineKaydet(); });
   $("dugme-makine-excel").onclick = makineExcelIndir;
   $("dugme-makine-excel-alt").onclick = makineExcelIndir;
+  $("dugme-makine-gonder").onclick = makineBilgisayaraGonder;
   $("menu-makine").onclick = makineAc;
   $("menu-fotolar").onclick = () => { katmaniKapat("katman-kuyular"); fotolariAc(); };
 }
@@ -3460,7 +3507,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v31";
+const SURUM = "v32";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
