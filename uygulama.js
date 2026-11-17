@@ -1774,24 +1774,32 @@ function makineBilgisayardanBirlestir(bilgi) {
   }
   const v = makineVerisi();
   const kayitlar = new Map(v.kayitlar.map((k) => [k.kimlik, k])), silinenler = { ...v.silinenler };
-  let eklenen = 0, guncellenen = 0, silinen = 0;
+  let eklenen = 0, guncellenen = 0, silinen = 0, yazilacak = false;
   const ayni = (a, b) => ["ay", "makine", "usta", "baslama", "bitis", "kuyu", "onerilen", "yapilan"].every((x) => (a[x] ?? null) === (b[x] ?? null));
-  for (const ham of bilgi.kayitlar || []) {
-    const gelen = gelenMakineKaydi(ham);
-    if (!gelen) continue;
-    if ((silinenler[gelen.kimlik] ?? -1) >= gelen.guncelleme) continue;  // telefonda bundan sonra silinmiş
-    const eski = kayitlar.get(gelen.kimlik);
-    if (!eski) { kayitlar.set(gelen.kimlik, gelen); eklenen++; }
-    else if ((Number(eski.guncelleme) || 0) < gelen.guncelleme && !ayni(eski, gelen)) { kayitlar.set(gelen.kimlik, { ...eski, ...gelen }); guncellenen++; }
-  }
+  // önce silme bilgileri: kayıt burada olmasa da saklanır (yenisi), yoksa eski bir dosya silinmiş kaydı geri getirir
   for (const [kimlik, zamanHam] of Object.entries(bilgi.silinenler || {})) {
     const zaman = Number(zamanHam);
     if (!Number.isFinite(zaman)) continue;
+    if (!((silinenler[kimlik] ?? -1) >= zaman)) { silinenler[kimlik] = zaman; yazilacak = true; }
+  }
+  for (const ham of bilgi.kayitlar || []) {
+    const gelen = gelenMakineKaydi(ham);
+    if (!gelen) continue;
+    if ((silinenler[gelen.kimlik] ?? -1) >= gelen.guncelleme) continue;  // bundan sonra silinmiş
+    const eski = kayitlar.get(gelen.kimlik);
+    if (!eski) { kayitlar.set(gelen.kimlik, gelen); eklenen++; yazilacak = true; continue; }
+    if ((Number(eski.guncelleme) || 0) >= gelen.guncelleme) continue;
+    // daha yeni: içerik aynı olsa da zaman saklanır, yoksa sonra gelen eski bir dosya bunun üzerine yazar
+    if (!ayni(eski, gelen)) guncellenen++;
+    kayitlar.set(gelen.kimlik, { ...eski, ...gelen });
+    yazilacak = true;
+  }
+  for (const [kimlik, zaman] of Object.entries(silinenler)) {
     const eski = kayitlar.get(kimlik);
-    if (eski && (Number(eski.guncelleme) || 0) <= zaman) { kayitlar.delete(kimlik); silinenler[kimlik] = zaman; silinen++; }
+    if (eski && (Number(eski.guncelleme) || 0) <= zaman) { kayitlar.delete(kimlik); silinen++; yazilacak = true; }
   }
   // gelenler bilgisayardan geldiği için geri gönderilmesi gerekmez: sonDegisiklik ilerletilmez
-  if ((eklenen || guncellenen || silinen) && !makineYaz({ kayitlar: [...kayitlar.values()], silinenler })) throw new Error("telefonda yer kalmamış olabilir");
+  if (yazilacak && !makineYaz({ kayitlar: [...kayitlar.values()], silinenler })) throw new Error("telefonda yer kalmamış olabilir");
   return { eklenen, guncellenen, silinen };
 }
 
@@ -3596,7 +3604,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v33";
+const SURUM = "v34";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
