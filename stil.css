@@ -209,6 +209,14 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 
 /* Fotoğraf kuyruğu */
 #foto-kuyrugu { margin-top: 10px; }
+/* Kuyu fotoğrafları */
+.foto-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin: 4px 0 10px; }
+.foto-izgara:empty { display: none; }
+.foto-kucuk { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--ikincil); }
+.foto-kucuk img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.foto-kucuk span { position: absolute; left: 6px; bottom: 5px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.foto-kucuk button { position: absolute; top: 4px; right: 4px; min-height: 0; width: 28px; height: 28px; padding: 0; border-radius: 50%;
+  background: rgba(15, 23, 42, .62); color: #fff; font-size: 18px; line-height: 1; }
 .foto {
   display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--cizgi);
 }

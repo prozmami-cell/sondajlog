@@ -1192,6 +1192,7 @@ function kuyulariCiz() {
       if (!cevap) return;
       delete kuyular[kimlik];
       depoYaz(DEPO_KUYULAR, kuyular);
+      kuyununFotograflariniSil(kimlik).catch(() => {});
       if (kimlik === aktifKimlik) {
         const kalan = Object.keys(kuyular);
         kalan.length ? kuyuAc(kalan[0]) : yeniKuyu();
@@ -1231,7 +1232,7 @@ function sekmeSec(ad) {
   for (const bolum of document.querySelectorAll(".sekme")) bolum.hidden = bolum !== yeni && !(gecis && bolum === eski);
   window.scrollTo(0, 0);
   if (gecis) sekmeGecisi(eski, yeni, SEKME_SIRASI.indexOf(ad) > SEKME_SIRASI.indexOf(onceki) ? 1 : -1, eskiUst, eskiSol, eskiGenislik);
-  if (ad === "foto") motoruHazirla();
+  if (ad === "foto") { motoruHazirla(); fotolariCiz(); }
   if (ad === "tanim") tanimBoylariniAyarla();
 }
 
@@ -1391,6 +1392,196 @@ async function motoruHazirla() {
   } catch (hata) {
     yaz("Okuma motoru yüklenemedi: " + hata.message + ". İnternet bağlantısını kontrol edin.");
   }
+}
+
+// ---------- Kuyu fotoğrafları ----------
+// Makine lokasyonu, makine, sandık ve kuyu betonu fotoğrafları bu telefonda IndexedDB'de kuyuyla (aktifKimlik) birlikte
+// saklanır; localStorage'a sığmazlar. Her fotoğrafın küçük bir önizlemesi de saklanır, ekranda yalnızca o çizilir
+// (tam boy fotoğrafları çözmek telefonu yorar). ZIP masaüstündeki "Kuyu Fotoğrafları" sayfasıyla aynı adlandırmayla,
+// tek klasörde: "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg".
+const FOTO_TURLERI = ["Lokasyon", "Makine", "Sandik", "Beton"];
+let fotoDbSozu = null;
+
+function fotoDb() {
+  fotoDbSozu ??= new Promise((coz, reddet) => {
+    const istek = indexedDB.open("logvera-fotolar", 1);
+    istek.onupgradeneeded = () => istek.result.createObjectStore("fotolar", { keyPath: "kimlik" }).createIndex("kuyu", "kuyu");
+    istek.onsuccess = () => coz(istek.result);
+    istek.onerror = () => { fotoDbSozu = null; reddet(istek.error); };
+  });
+  return fotoDbSozu;
+}
+
+async function fotoIslem(kip, is) {
+  const db = await fotoDb();
+  return new Promise((coz, reddet) => {
+    const islem = db.transaction("fotolar", kip);
+    const sonuc = is(islem.objectStore("fotolar"));
+    islem.oncomplete = () => coz(sonuc?.result);
+    islem.onerror = islem.onabort = () => reddet(islem.error);
+  });
+}
+
+async function kuyuFotograflari(kuyu = aktifKimlik) {
+  const kayitlar = await fotoIslem("readonly", (depo) => depo.index("kuyu").getAll(kuyu));
+  return (kayitlar || []).sort((a, b) => a.eklenme - b.eklenme);
+}
+
+async function kucukOnizleme(dosya) {
+  const bitmap = await createImageBitmap(dosya);
+  const olcek = Math.min(1, 240 / Math.max(bitmap.width, bitmap.height));
+  const tuval = Object.assign(document.createElement("canvas"), { width: Math.round(bitmap.width * olcek), height: Math.round(bitmap.height * olcek) });
+  tuval.getContext("2d").drawImage(bitmap, 0, 0, tuval.width, tuval.height);
+  bitmap.close?.();
+  return new Promise((coz) => tuval.toBlob(coz, "image/jpeg", 0.7));
+}
+
+async function fotoEkle(tur, dosyalar) {
+  if (!dosyalar.length) return;
+  navigator.storage?.persist?.().catch(() => {});  // tarayıcı yer açmak için fotoğrafları silmesin
+  durumYaz("Fotoğraflar kaydediliyor…");
+  let eklenen = 0;
+  for (const [i, dosya] of [...dosyalar].entries()) {
+    let kucuk = null;
+    try { kucuk = await kucukOnizleme(dosya); } catch (hata) { /* çözülemeyen biçim: önizlemesiz saklanır */ }
+    try {
+      await fotoIslem("readwrite", (depo) => depo.put({
+        kimlik: yeniKimlik(), kuyu: aktifKimlik, tur, eklenme: Date.now() + i, blob: dosya, kucuk, tip: dosya.type, ad: dosya.name,
+      }));
+      eklenen++;
+    } catch (hata) {
+      sor("Fotoğraf kaydedilemedi", "Telefonda yer kalmamış olabilir.\n" + (hata?.message || hata), [["Tamam", true, true]]);
+      break;
+    }
+  }
+  await fotolariCiz();
+  durumYaz(`${eklenen} fotoğraf eklendi`);
+}
+
+async function fotoSil(kimlik) {
+  const cevap = await sor("Fotoğrafı sil", "Bu fotoğraf telefondan silinsin mi?", [["Sil", true, true], ["Vazgeç", false]]);
+  if (!cevap) return;
+  await fotoIslem("readwrite", (depo) => depo.delete(kimlik));
+  await fotolariCiz();
+}
+
+async function kuyununFotograflariniSil(kuyu) {
+  const kayitlar = await kuyuFotograflari(kuyu);
+  if (kayitlar.length) await fotoIslem("readwrite", (depo) => kayitlar.forEach((k) => depo.delete(k.kimlik)));
+}
+
+const fotoAdresleri = [];
+
+async function fotolariCiz() {
+  const kuyuAdi = (veri.kuyu_bilgileri.kuyu || "").trim();
+  $("foto-kuyu-bilgi").textContent = kuyuAdi ? `${kuyuAdi} kuyusunun fotoğrafları` : "Kuyu adı henüz yazılmadı (Manevra › Kuyu bilgileri). ZIP için gerekir.";
+  let kayitlar = [];
+  try { kayitlar = await kuyuFotograflari(); } catch (hata) { durumYaz("Fotoğraflar okunamadı: " + (hata?.message || hata)); }
+  fotoAdresleri.splice(0).forEach((adres) => URL.revokeObjectURL(adres));
+  for (const tur of FOTO_TURLERI) {
+    const kap = $("foto-" + tur), turunkiler = kayitlar.filter((k) => k.tur === tur);
+    kap.textContent = "";
+    $("foto-sayi-" + tur).textContent = turunkiler.length ? `${turunkiler.length} fotoğraf` : $("foto-sayi-" + tur).dataset.bos;
+    turunkiler.forEach((kayit, i) => {
+      const kutu = Object.assign(document.createElement("div"), { className: "foto-kucuk" });
+      if (kayit.kucuk) {
+        const adres = URL.createObjectURL(kayit.kucuk);
+        fotoAdresleri.push(adres);
+        kutu.appendChild(Object.assign(document.createElement("img"), { src: adres, alt: "" }));
+      }
+      kutu.appendChild(Object.assign(document.createElement("span"), { textContent: String(i + 1).padStart(2, "0") }));
+      const sil = Object.assign(document.createElement("button"), { textContent: "×", ariaLabel: "Sil" });
+      sil.onclick = () => fotoSil(kayit.kimlik);
+      kutu.appendChild(sil);
+      kap.appendChild(kutu);
+    });
+  }
+  const toplam = kayitlar.length;
+  $("dugme-kuyu-fotolari").textContent = toplam ? `Kuyu Fotoğraflarını Aç (${toplam})` : "Kuyu Fotoğraflarını Aç";
+}
+
+// --- ZIP (sıkıştırmasız; fotoğraflar zaten sıkıştırılmış) ---
+const CRC_TABLOSU = (() => {
+  const tablo = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    tablo[n] = c >>> 0;
+  }
+  return tablo;
+})();
+
+function crc32(baytlar) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < baytlar.length; i++) c = CRC_TABLOSU[(c ^ baytlar[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function zipOlustur(dosyalar) {
+  const kodlayici = new TextEncoder(), parcalar = [], merkez = [];
+  const simdi = new Date();
+  const saat = (simdi.getHours() << 11) | (simdi.getMinutes() << 5) | (simdi.getSeconds() >> 1);
+  const gun = ((simdi.getFullYear() - 1980) << 9) | ((simdi.getMonth() + 1) << 5) | simdi.getDate();
+  let konum = 0;
+  for (const { ad, blob } of dosyalar) {
+    const adBaytlari = kodlayici.encode(ad);
+    const veriBaytlari = new Uint8Array(await blob.arrayBuffer());
+    const crc = crc32(veriBaytlari), boy = veriBaytlari.length;
+    const yerel = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, saat, 2], [12, gun, 2], [14, crc, 4], [18, boy, 4], [22, boy, 4],
+      [26, adBaytlari.length, 2], [28, 0, 2]].forEach(([o, d, u]) => (u === 4 ? yerel.setUint32(o, d, true) : yerel.setUint16(o, d, true)));
+    parcalar.push(yerel, adBaytlari, blob);  // blob kopyalanmaz, Blob içinde başvuru olarak kalır
+    const m = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, saat, 2], [14, gun, 2], [16, crc, 4], [20, boy, 4],
+      [24, boy, 4], [28, adBaytlari.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, konum, 4]]
+      .forEach(([o, d, u]) => (u === 4 ? m.setUint32(o, d, true) : m.setUint16(o, d, true)));
+    merkez.push(m, adBaytlari);
+    konum += 30 + adBaytlari.length + boy;
+  }
+  const merkezBoyu = merkez.reduce((t, p) => t + p.byteLength, 0);
+  const son = new DataView(new ArrayBuffer(22));
+  [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, dosyalar.length, 2], [10, dosyalar.length, 2], [12, merkezBoyu, 4], [16, konum, 4], [20, 0, 2]]
+    .forEach(([o, d, u]) => (u === 4 ? son.setUint32(o, d, true) : son.setUint16(o, d, true)));
+  return new Blob([...parcalar, ...merkez, son], { type: "application/zip" });
+}
+
+function fotoUzantisi(kayit) {
+  const tip = { "image/jpeg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp" }[kayit.tip];
+  return tip || (kayit.ad?.match(/\.([a-z0-9]{2,5})$/i)?.[1] || "jpg").toLowerCase().replace("jpeg", "jpg");
+}
+
+async function fotoZipPaylas() {
+  const kuyuAdi = (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
+  if (!kuyuAdi) return hataGoster("Önce kuyu adını yazın (Manevra › Kuyu bilgileri). Fotoğraflar kuyu adıyla adlandırılır.");
+  const kayitlar = await kuyuFotograflari();
+  if (!kayitlar.length) return hataGoster("Bu kuyu için henüz fotoğraf yok.");
+  durumYaz("ZIP hazırlanıyor…");
+  const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [];
+  for (const tur of FOTO_TURLERI) {
+    kayitlar.filter((k) => k.tur === tur).forEach((kayit, i) => {
+      dosyalar.push({ ad: `${klasor}/${kuyuAdi}_${tur}_${String(i + 1).padStart(2, "0")}.${fotoUzantisi(kayit)}`, blob: kayit.blob });
+    });
+  }
+  const zip = await zipOlustur(dosyalar);
+  const ad = `${klasor}.zip`, dosya = new File([zip], ad, { type: "application/zip" });
+  if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
+    try {
+      await navigator.share({ files: [dosya], title: ad });
+      durumYaz(`ZIP hazır: ${ad} (${dosyalar.length} fotoğraf)`);
+    } catch (hata) {
+      if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+    }
+    return;
+  }
+  const baglanti = Object.assign(document.createElement("a"), { href: URL.createObjectURL(dosya), download: ad });
+  baglanti.click();
+  setTimeout(() => URL.revokeObjectURL(baglanti.href), 10000);
+  durumYaz(`İndirildi: ${ad} (${dosyalar.length} fotoğraf)`);
+}
+
+function fotolariAc() {
+  katmaniAc("katman-fotolar");
+  fotolariCiz();
 }
 
 // ---------- Fotoğraf kuyruğu ----------
@@ -2848,6 +3039,13 @@ function baglantilariKur() {
   $("dugme-spt-kaydet").onclick = sptKaydet;
   $("dugme-spt-sil").onclick = sptSil;
   $("aralik-kaydet").onclick = manevraAraliginiKaydet;
+  $("dugme-kuyu-fotolari").onclick = fotolariAc;
+  $("dugme-foto-zip").onclick = fotoZipPaylas;
+  $("dugme-foto-zip-ust").onclick = fotoZipPaylas;
+  for (const girdi of document.querySelectorAll("[data-foto-tur]")) {
+    girdi.onchange = async () => { await fotoEkle(girdi.dataset.fotoTur, girdi.files); girdi.value = ""; };
+  }
+  for (const tur of FOTO_TURLERI) $("foto-sayi-" + tur).dataset.bos = $("foto-sayi-" + tur).textContent;
   $("aralik-vazgec").onclick = manevraDuzenleKapat;
   $("aralik-duzen").onclick = (olay) => { if (olay.target === $("aralik-duzen")) manevraDuzenleKapat(); };
   $("aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") manevraAraliginiKaydet(); });
@@ -2908,7 +3106,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v27";
+const SURUM = "v28";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
