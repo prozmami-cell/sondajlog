@@ -1463,10 +1463,24 @@ function makineTarihCoz(yazi) {
 const makineTarihYazisi = (t) => (t ? `${t[2]}.${String(t[1]).padStart(2, "0")}.${t[0]}` : "");
 const makineTarihSirasi = (t) => (t ? t[0] * 10000 + t[1] * 100 + t[2] : 99999999);
 
+// Yazılırken gg.aa.yyyy'ye çevirir. Nokta yazılmadıysa rakamlar 2-2-4 bölünür (03112026 -> 03.11.2026); yazılan
+// noktalara uyulur, böylece tek haneli gün/ay bozulmaz (3.12.2026 olduğu gibi kalır).
 function noktaliTarihBicimle(kutu) {
-  const rakam = kutu.value.replace(/\D/g, "").slice(0, 8);
-  const yeni = [rakam.slice(0, 2), rakam.slice(2, 4), rakam.slice(4)].filter(Boolean).join(".");
-  if (yeni !== kutu.value) kutu.value = yeni;
+  const deger = kutu.value, parcalar = deger.split(/[./,]/);
+  let [gun, ay = "", yil = ""] = parcalar.map((p) => p.replace(/\D/g, ""));
+  if (parcalar.length === 1 && gun.length > 2) { ay = gun.slice(2); gun = gun.slice(0, 2); }
+  if (parcalar.length <= 2 && ay.length > 2) { yil = ay.slice(2); ay = ay.slice(0, 2); }
+  gun = gun.slice(0, 2); ay = ay.slice(0, 2); yil = yil.slice(0, 4);
+  let yeni = gun;
+  if (ay || parcalar.length > 1) yeni += "." + ay;
+  if (yil || parcalar.length > 2) yeni += "." + yil;
+  if (yeni !== deger) kutu.value = yeni;
+}
+
+// düzenleme kutusuna iki haneli gün ve ayla yüklenir (3.11.2026 -> 03.11.2026)
+function makineTarihKutuya(yazi) {
+  const t = makineTarihCoz(yazi);
+  return t ? `${String(t[2]).padStart(2, "0")}.${String(t[1]).padStart(2, "0")}.${t[0]}` : (yazi || "");
 }
 
 function makineMetrajOku(yazi) {
@@ -1500,7 +1514,7 @@ function makineCiz() {
     })), "Bu ay için bu makinede kayıt yok");
   satirlar.forEach((satir, i) => satir.addEventListener("click", () => makineDuzenle(kayitlar[i].kimlik)));
   const toplamSatir = Object.assign(document.createElement("div"), { className: "satir makine-toplam" });
-  ["TOPLAM METRAJ", "", "", "", yaziya(toplam)].forEach((h) => toplamSatir.appendChild(Object.assign(document.createElement("span"), { textContent: h })));
+  ["TOPLAM METRAJ", "", yaziya(toplam)].forEach((h) => toplamSatir.appendChild(Object.assign(document.createElement("span"), { textContent: h })));
   $("tablo-makine").appendChild(toplamSatir);
   $("makine-bilgi").textContent = `${v.makine} · ${makineAyYazisi()} · ${kayitlar.length} kuyu`;
 }
@@ -1516,8 +1530,8 @@ function makineDuzenle(kimlik) {
   const kayit = makineVerisi().kayitlar.find((k) => k.kimlik === kimlik);
   if (!kayit) return;
   makineDurumu.duzenlenen = kimlik;
-  $("makine-baslama").value = kayit.baslama || "";
-  $("makine-bitis").value = kayit.bitis || "";
+  $("makine-baslama").value = makineTarihKutuya(kayit.baslama);
+  $("makine-bitis").value = makineTarihKutuya(kayit.bitis);
   $("makine-kuyu").value = kayit.kuyu || "";
   $("makine-onerilen").value = makineMetrajYazisi(kayit.onerilen);
   $("makine-yapilan").value = makineMetrajYazisi(kayit.yapilan);
@@ -3446,7 +3460,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v30";
+const SURUM = "v31";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
