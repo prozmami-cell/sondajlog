@@ -236,8 +236,61 @@ function darbeleriDogrula(yazilar) {
   return { degerler: [darbeler[0], darbeler[1], darbeler[2], sptN] };
 }
 
+// SPT'ler, aralığı düzeltilmişse (veri.spt_araliklari; ör. refü 21,00-21,03) gerçek aralığıyla. Manevra değişmez.
 function sptListesi() {
-  return veri.manevralar.filter((m) => m[2].startsWith("SPT"));
+  return veri.manevralar.filter((m) => m[2].startsWith("SPT")).map(([bas, bit, tip]) => {
+    const aralik = veri.spt_araliklari[tip];
+    return aralik ? [aralik[0], aralik[1], tip] : [bas, bit, tip];
+  });
+}
+
+// Numune Derinliği (LogPlot Depth / Text): manevra sınırları ve karşılarına yazılacak gerçek derinlik.
+// Aralığı düzeltilmiş SPT'de manevra ucunun karşısına SPT'nin gerçek ucu gelir (24,45 -> 24,14).
+function numuneDerinligiSatirlari() {
+  const karsilik = {};
+  for (const [bas, bit, tip] of veri.manevralar) {
+    const aralik = veri.spt_araliklari[tip];
+    if (aralik) { karsilik[bas] = aralik[0]; karsilik[bit] = aralik[1]; }
+  }
+  const sinirlar = [];
+  for (const [bas, bit] of veri.manevralar) {
+    for (const derinlik of [bas, bit]) if (sinirlar[sinirlar.length - 1] !== derinlik) sinirlar.push(derinlik);
+  }
+  return sinirlar.map((derinlik) => [derinlik, karsilik[derinlik] ?? derinlik]);
+}
+
+function derinlikCiz() {
+  satirlariCiz($("tablo-derinlik"), ["Derinlik", "Metin"],
+    numuneDerinligiSatirlari().map(([d, m]) => ({ hucreler: [d, m], sinif: d !== m ? "spt duzeltilmis" : "" })),
+    "Henüz manevra yok");
+}
+
+function listeSec(ad) {
+  for (const dugme of document.querySelectorAll(".bolum-secici button")) dugme.classList.toggle("secili", dugme.dataset.liste === ad);
+  $("tablo-manevra").hidden = $("kopya-manevra").hidden = ad !== "manevra";
+  $("tablo-derinlik").hidden = $("kopya-derinlik").hidden = ad !== "derinlik";
+}
+
+function sptAraliginiKaydet(sifirla = false) {
+  const secilen = $("spt-secim").value;
+  const manevra = veri.manevralar.find((m) => m[2] === secilen);
+  if (!manevra) return hataGoster("Önce bir SPT seçin.", "spt-secim");
+  if (sifirla) {
+    delete veri.spt_araliklari[secilen];
+  } else {
+    const bas = sayiya($("spt-aralik-bas").value), bit = sayiya($("spt-aralik-bit").value);
+    if (bas === null || bas < 0) return hataGoster("Başlangıcı sayı olarak yazın (ör. 21,00).", "spt-aralik-bas");
+    if (bit === null || r2(bit - bas) <= 0) return hataGoster("Bitiş, başlangıçtan büyük olmalı (ör. 21,03).", "spt-aralik-bit");
+    const yeni = [yaziya(r2(bas)), yaziya(r2(bit))];
+    if (yeni[0] === manevra[0] && yeni[1] === manevra[1]) delete veri.spt_araliklari[secilen];
+    else veri.spt_araliklari[secilen] = yeni;
+  }
+  kaydet();
+  const [bas, bit] = veri.spt_araliklari[secilen] || manevra;
+  durumYaz(`${secilen} aralığı: ${bas}-${bit} m (manevra ${manevra[0]}-${manevra[1]} m kalır)`);
+  sptCiz(secilen);
+  numuneCiz(false);
+  derinlikCiz();
 }
 
 // LogPlot SPT-N grafiği: her SPT, başlangıç derinliğinin 0,25 m altına N değeriyle yazılır (1,50-1,95 -> 1,75)
@@ -339,6 +392,7 @@ function manevraCiz() {
     "Henüz manevra yok");
   const tablo = $("tablo-manevra");
   tablo.lastElementChild?.scrollIntoView?.({ block: "nearest" });
+  derinlikCiz();
 }
 
 function secenekleriDoldur(secim, degerler, secilecek) {
@@ -360,7 +414,7 @@ function sptCiz(secilecek) {
   const satirlar = satirlariCiz($("tablo-spt"), ["Aralık", "SPT", "0-15", "15-30", "30-45", "N"],
     liste.map(([bas, bit, tip]) => {
       const d = veri.spt_degerleri[tip];
-      return { hucreler: [`${bas}-${bit}`, tip, ...(d || ["", "", "", ""])], sinif: d ? "" : "bos" };
+      return { hucreler: [`${bas}-${bit}`, tip, ...(d || ["", "", "", ""])], sinif: (d ? "" : "bos") + (veri.spt_araliklari[tip] ? " duzeltilmis" : "") };
     }), "Henüz SPT yok");
   satirlar.forEach((satir, i) => satir.addEventListener("click", () => {
     $("spt-secim").value = numaralar[i];
@@ -374,6 +428,16 @@ function sptCiz(secilecek) {
 function sptKutulariniDoldur() {
   const degerler = veri.spt_degerleri[$("spt-secim").value] || ["", "", ""];
   ["darbe-1", "darbe-2", "darbe-3"].forEach((k, i) => { $(k).value = degerler[i]; $(k).classList.remove("hatali"); });
+  const secilen = $("spt-secim").value;
+  const manevra = veri.manevralar.find((m) => m[2] === secilen);
+  const aralik = (manevra && veri.spt_araliklari[secilen]) || manevra || ["", ""];
+  $("spt-aralik-bas").value = aralik[0];
+  $("spt-aralik-bit").value = aralik[1];
+  ["spt-aralik-bas", "spt-aralik-bit"].forEach((k) => $(k).classList.remove("hatali"));
+  $("spt-aralik-ipucu").textContent = manevra
+    ? `${secilen} manevrası ${manevra[0]}-${manevra[1]} m (değişmez). SPT 45 cm ilerlemediyse gerçek aralığı yazın.`
+    : "SPT 45 cm ilerlemediyse (ör. refü) gerçek aralığı yazın; manevra değişmez.";
+  $("dugme-spt-aralik-sifirla").disabled = !(manevra && veri.spt_araliklari[secilen]);
 }
 
 function tcrCiz(secilecek) {
@@ -535,7 +599,7 @@ function numuneListesiniDuzenle(liste) {
 function numuneSatirlari() {
   const satirlar = [
     // SPT-N'si R (refü) olan SPT'ler numune listesine girmez
-    ...veri.manevralar.filter((m) => m[2].startsWith("SPT") && (veri.spt_degerleri[m[2]] || [])[3] !== "R").map(([bas, bit, tip]) => [bas, bit, tip, -1, "manevralardan"]),
+    ...sptListesi().filter((m) => (veri.spt_degerleri[m[2]] || [])[3] !== "R").map(([bas, bit, tip]) => [bas, bit, tip, -1, "manevralardan"]),
     ...manevraUdleri().map(([bas, bit, ad]) => [bas, bit, ad, -1, "manevralardan"]),
     ...veri.ud_listesi.map(([bas, bit, ad]) => [bas, bit, ad, -1, "elle (UD)"]),
   ];
@@ -902,6 +966,9 @@ async function kopyala(tur) {
   const darbe = (tip) => veri.spt_degerleri[tip] || ["", "", "", ""];
   const metinler = {
     "manevra": () => veri.manevralar.map((m) => m.join("\t")),
+    "derinlik": () => numuneDerinligiSatirlari().map((s) => s.join("\t")),
+    "derinlik-d": () => numuneDerinligiSatirlari().map((s) => s[0]),
+    "derinlik-m": () => numuneDerinligiSatirlari().map((s) => s[1]),
     "spt-aralik": () => sptler.map((m) => `${m[0]}\t${m[1]}`),
     "spt-darbe": () => sptler.map((m) => darbe(m[2]).join("\t")),
     "spt-n": () => sptler.map((m) => darbe(m[2])[3]),
@@ -2666,6 +2733,10 @@ function baglantilariKur() {
   $("spt-secim").onchange = sptKutulariniDoldur;
   $("dugme-spt-kaydet").onclick = sptKaydet;
   $("dugme-spt-sil").onclick = sptSil;
+  $("dugme-spt-aralik-kaydet").onclick = () => sptAraliginiKaydet();
+  $("dugme-spt-aralik-sifirla").onclick = () => sptAraliginiKaydet(true);
+  $("spt-aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") sptAraliginiKaydet(); });
+  for (const dugme of document.querySelectorAll(".bolum-secici button")) dugme.onclick = () => listeSec(dugme.dataset.liste);
   ["darbe-1", "darbe-2", "darbe-3"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
     if (olay.key !== "Enter") return;
     i < 2 ? $(hepsi[i + 1]).focus() : sptKaydet();
@@ -2720,7 +2791,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v24";
+const SURUM = "v25";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.

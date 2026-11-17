@@ -93,11 +93,22 @@
       </div>
     </div>
 
-    <div class="liste-baslik">
-      <span>Manevralar</span>
+    <div class="bolum-secici" role="tablist">
+      <button class="secili" data-liste="manevra" role="tab">Manevralar</button>
+      <button data-liste="derinlik" role="tab">Numune Derinliği</button>
+    </div>
+    <div class="kopya-satiri" id="kopya-manevra">
+      <span></span>
       <button class="kucuk" data-kopyala="manevra">Kopyala</button>
     </div>
+    <div class="kopya-satiri" id="kopya-derinlik" hidden>
+      <span>Düzeltilmiş SPT'ler mavi</span>
+      <button class="kucuk" data-kopyala="derinlik-d">Derinlik</button>
+      <button class="kucuk" data-kopyala="derinlik-m">Metin</button>
+      <button class="kucuk" data-kopyala="derinlik">Kopyala</button>
+    </div>
     <div class="tablo" id="tablo-manevra"></div>
+    <div class="tablo" id="tablo-derinlik" hidden></div>
   </section>
 
   <!-- SPT -->
@@ -113,6 +124,17 @@
       <div class="dugmeler">
         <button class="ana" id="dugme-spt-kaydet">Değerleri Kaydet</button>
         <button id="dugme-spt-sil">Değerleri Sil</button>
+      </div>
+    </div>
+    <div class="kart">
+      <div class="kart-baslik">SPT aralığı <span class="ipucu" id="spt-aralik-ipucu">SPT 45 cm ilerlemediyse (ör. refü) gerçek aralığı yazın; manevra değişmez.</span></div>
+      <div class="iki">
+        <label>Başlangıç (m)<input id="spt-aralik-bas" inputmode="decimal" autocomplete="off"></label>
+        <label>Bitiş (m)<input id="spt-aralik-bit" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <div class="dugmeler">
+        <button class="ana" id="dugme-spt-aralik-kaydet">Aralığı Kaydet</button>
+        <button id="dugme-spt-aralik-sifirla">Manevraya Dön</button>
       </div>
     </div>
     <div class="liste-baslik">
