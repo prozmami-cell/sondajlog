@@ -1729,6 +1729,90 @@ async function makineExcelIndir() {
   durumYaz("İndirildi: " + ad);
 }
 
+// --- Bilgisayardan Al: bilgisayarın OneDrive › Logvera'ya yazdığı "Makine Metrajı - Bilgisayar.zip" ---
+// Bilgisayar ZIP'i sıkıştırmasız yazar; yalnız o biçim okunur. Birleştirme bilgisayardakiyle aynı kurallarla:
+// kimliğe göre, daha yeni "guncelleme" kazanır; silinenler zamanıyla gelir; telefonda silinen geri gelmez.
+function zipOku(tampon) {
+  const v = new DataView(tampon), dosyalar = {};
+  let son = -1;
+  for (let i = tampon.byteLength - 22; i >= Math.max(0, tampon.byteLength - 65557); i--) {
+    if (v.getUint32(i, true) === 0x06054b50) { son = i; break; }
+  }
+  if (son < 0) throw new Error("ZIP dosyası değil");
+  let konum = v.getUint32(son + 16, true);
+  const adet = v.getUint16(son + 10, true), cozucu = new TextDecoder();
+  for (let n = 0; n < adet; n++) {
+    if (v.getUint32(konum, true) !== 0x02014b50) throw new Error("ZIP dizini bozuk");
+    const yontem = v.getUint16(konum + 10, true), boy = v.getUint32(konum + 20, true);
+    const adBoy = v.getUint16(konum + 28, true), ekBoy = v.getUint16(konum + 30, true), notBoy = v.getUint16(konum + 32, true);
+    const yerel = v.getUint32(konum + 42, true);
+    const ad = cozucu.decode(new Uint8Array(tampon, konum + 46, adBoy));
+    const veriBasi = yerel + 30 + v.getUint16(yerel + 26, true) + v.getUint16(yerel + 28, true);
+    if (yontem === 0) dosyalar[ad] = new Uint8Array(tampon, veriBasi, boy);
+    konum += 46 + adBoy + ekBoy + notBoy;
+  }
+  return dosyalar;
+}
+
+function gelenMakineKaydi(ham) {
+  if (!ham || typeof ham !== "object" || !String(ham.kimlik || "").trim()) return null;
+  const ay = String(ham.ay || "");
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ay) || !MAKINELER.includes(ham.makine)) return null;
+  const baslama = makineTarihCoz(ham.baslama), bitis = ham.bitis ? makineTarihCoz(ham.bitis) : null;
+  const kuyu = String(ham.kuyu || "").trim().toLocaleUpperCase("tr-TR");
+  if (!baslama || !kuyu || (ham.bitis && !bitis)) return null;
+  const metraj = (d) => (d === null || d === undefined || d === "" ? null : Number.isFinite(Number(d)) && Number(d) >= 0 ? r2(Number(d)) : undefined);
+  const onerilen = metraj(ham.onerilen), yapilan = metraj(ham.yapilan);
+  if (onerilen === undefined || yapilan === undefined) return null;
+  return { kimlik: String(ham.kimlik), ay, makine: ham.makine, usta: String(ham.usta || ""), baslama: makineTarihYazisi(baslama),
+    bitis: makineTarihYazisi(bitis), kuyu, onerilen, yapilan, guncelleme: Number(ham.guncelleme) || 0 };
+}
+
+function makineBilgisayardanBirlestir(bilgi) {
+  if (!bilgi || typeof bilgi !== "object" || !Array.isArray(bilgi.kayitlar || []) || typeof (bilgi.silinenler || {}) !== "object") {
+    throw new Error("makine metrajı verisi beklenen biçimde değil");
+  }
+  const v = makineVerisi();
+  const kayitlar = new Map(v.kayitlar.map((k) => [k.kimlik, k])), silinenler = { ...v.silinenler };
+  let eklenen = 0, guncellenen = 0, silinen = 0;
+  const ayni = (a, b) => ["ay", "makine", "usta", "baslama", "bitis", "kuyu", "onerilen", "yapilan"].every((x) => (a[x] ?? null) === (b[x] ?? null));
+  for (const ham of bilgi.kayitlar || []) {
+    const gelen = gelenMakineKaydi(ham);
+    if (!gelen) continue;
+    if ((silinenler[gelen.kimlik] ?? -1) >= gelen.guncelleme) continue;  // telefonda bundan sonra silinmiş
+    const eski = kayitlar.get(gelen.kimlik);
+    if (!eski) { kayitlar.set(gelen.kimlik, gelen); eklenen++; }
+    else if ((Number(eski.guncelleme) || 0) < gelen.guncelleme && !ayni(eski, gelen)) { kayitlar.set(gelen.kimlik, { ...eski, ...gelen }); guncellenen++; }
+  }
+  for (const [kimlik, zamanHam] of Object.entries(bilgi.silinenler || {})) {
+    const zaman = Number(zamanHam);
+    if (!Number.isFinite(zaman)) continue;
+    const eski = kayitlar.get(kimlik);
+    if (eski && (Number(eski.guncelleme) || 0) <= zaman) { kayitlar.delete(kimlik); silinenler[kimlik] = zaman; silinen++; }
+  }
+  // gelenler bilgisayardan geldiği için geri gönderilmesi gerekmez: sonDegisiklik ilerletilmez
+  if ((eklenen || guncellenen || silinen) && !makineYaz({ kayitlar: [...kayitlar.values()], silinenler })) throw new Error("telefonda yer kalmamış olabilir");
+  return { eklenen, guncellenen, silinen };
+}
+
+async function makineBilgisayardanAl(dosya) {
+  try {
+    const parcalar = zipOku(await dosya.arrayBuffer());
+    const icerik = parcalar["logvera_makine_bilgisayar.json"];
+    if (!icerik) {
+      return hataGoster("Bu dosya bilgisayarın makine metrajı değil. OneDrive › Logvera klasöründeki \"Makine Metrajı - Bilgisayar.zip\" dosyasını seçin.");
+    }
+    const { eklenen, guncellenen, silinen } = makineBilgisayardanBirlestir(JSON.parse(new TextDecoder().decode(icerik)));
+    makineFormuTemizle();
+    makineCiz();
+    const ozet = [eklenen && `${eklenen} yeni`, guncellenen && `${guncellenen} güncellendi`, silinen && `${silinen} silindi`].filter(Boolean).join(", ") || "değişiklik yok";
+    durumYaz("Bilgisayardan alındı: " + ozet);
+    sor("Bilgisayardan Al", "Makine metrajı: " + ozet, [["Tamam", true, true]]);
+  } catch (hata) {
+    hataGoster("Dosya okunamadı: " + (hata?.message || hata));
+  }
+}
+
 function makineAc() {
   katmaniKapat("katman-kuyular");
   katmaniAc("katman-makine");
@@ -1761,6 +1845,11 @@ function makineBagla() {
   $("dugme-makine-excel").onclick = makineExcelIndir;
   $("dugme-makine-excel-alt").onclick = makineExcelIndir;
   $("dugme-makine-gonder").onclick = makineBilgisayaraGonder;
+  $("makine-bilgisayardan").onchange = async () => {
+    const dosya = $("makine-bilgisayardan").files[0];
+    $("makine-bilgisayardan").value = "";
+    if (dosya) await makineBilgisayardanAl(dosya);
+  };
   $("menu-makine").onclick = makineAc;
   $("menu-fotolar").onclick = () => { katmaniKapat("katman-kuyular"); fotolariAc(); };
 }
@@ -3507,7 +3596,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v32";
+const SURUM = "v33";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
