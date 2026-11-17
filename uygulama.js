@@ -81,7 +81,8 @@ function kaydet() {
 
 function kaydetIsaretiniCiz() {
   const kayit = kuyular[aktifKimlik];
-  const bekleyen = !!kayit && (kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length + (kayit.veri.ud_listesi || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme);
+  const bekleyen = !!kayit && ((kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length + (kayit.veri.ud_listesi || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme)
+    || aktarilmamisFoto > 0);  // bilgisayara gitmemiş fotoğraf da bekleyen sayılır
   $("kaydet-isareti").hidden = !bekleyen;
 }
 
@@ -99,6 +100,7 @@ function kuyuAc(kimlik) {
   depoYaz(DEPO_AKTIF, aktifKimlik);
   hepsiniCiz();
   kaydetIsaretiniCiz();
+  aktarilmamislariSay();
 }
 
 function yeniKuyu() {
@@ -107,6 +109,7 @@ function yeniKuyu() {
   oneri = { baslangic: "0,00", bitis: "1,50" };
   kaydet();
   hepsiniCiz();
+  aktarilmamislariSay();
 }
 
 // ---------- Manevra kuralları (program.py ile aynı) ----------
@@ -1111,14 +1114,39 @@ function dosyaAdi() {
   return ad + ".json";
 }
 
+// Kaydet: kuyu dosyası ve bilgisayara henüz gitmemiş kuyu fotoğrafları aynı paylaşımda (OneDrive › Logvera). Bilgisayarda
+// "Telefonu İzle" ZIP'i görünce fotoğrafları kuyunun klasörüne ekler. ZIP adı her seferinde farklıdır, üzerine yazılmaz.
 async function paylas() {
   const metin = JSON.stringify(veri, null, 2);
   const dosya = new File([metin], dosyaAdi(), { type: "application/json" });
-  if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
+  let dosyalar = [dosya], yeniFotolar = [];
+  const kuyuAdi = fotoKuyuAdi();
+  if (kuyuAdi) {
     try {
-      await navigator.share({ files: [dosya], title: dosyaAdi() });
+      const tumu = await kuyuFotograflari();
+      yeniFotolar = tumu.filter((k) => !k.aktarildi);
+      if (yeniFotolar.length) {
+        durumYaz("Fotoğraflar hazırlanıyor…");
+        const { zip } = await fotoZipiHazirla(kuyuAdi, tumu, yeniFotolar);
+        const z = new Date(), iki = (n) => String(n).padStart(2, "0");
+        const zaman = `${z.getFullYear()}-${iki(z.getMonth() + 1)}-${iki(z.getDate())} ${iki(z.getHours())}${iki(z.getMinutes())}${iki(z.getSeconds())}`;
+        dosyalar.push(new File([zip], `${kuyuAdi} Fotoğrafları ${zaman}.zip`, { type: "application/zip" }));
+      }
+    } catch (hata) {
+      yeniFotolar = [];
+      durumYaz("Fotoğraflar eklenemedi: " + (hata?.message || hata));
+    }
+  }
+  if (dosyalar.length > 1 && !(navigator.canShare && navigator.canShare({ files: dosyalar }))) {
+    dosyalar = [dosya];  // iki dosya birlikte paylaşılamıyorsa yalnız kuyu dosyası
+    yeniFotolar = [];
+  }
+  if (navigator.canShare && navigator.canShare({ files: dosyalar })) {
+    try {
+      await navigator.share({ files: dosyalar, title: dosyaAdi() });
       disaAktarildi();
-      durumYaz("Kaydedildi: " + dosyaAdi());
+      if (yeniFotolar.length) await fotolariAktarildiYap(yeniFotolar);
+      durumYaz("Kaydedildi: " + dosyaAdi() + (yeniFotolar.length ? ` + ${yeniFotolar.length} fotoğraf` : ""));
     } catch (hata) {
       if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
     }
@@ -1471,6 +1499,7 @@ async function kuyununFotograflariniSil(kuyu) {
 }
 
 const fotoAdresleri = [];
+let aktarilmamisFoto = 0;
 
 async function fotolariCiz() {
   const kuyuAdi = (veri.kuyu_bilgileri.kuyu || "").trim();
@@ -1497,6 +1526,8 @@ async function fotolariCiz() {
     });
   }
   const toplam = kayitlar.length;
+  aktarilmamisFoto = kayitlar.filter((k) => !k.aktarildi).length;
+  kaydetIsaretiniCiz();
   $("dugme-kuyu-fotolari").textContent = toplam ? `Kuyu Fotoğraflarını Aç (${toplam})` : "Kuyu Fotoğraflarını Aç";
 }
 
@@ -1550,24 +1581,50 @@ function fotoUzantisi(kayit) {
   return tip || (kayit.ad?.match(/\.([a-z0-9]{2,5})$/i)?.[1] || "jpg").toLowerCase().replace("jpeg", "jpg");
 }
 
+const fotoKuyuAdi = () => (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
+
+// ZIP: "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg" + kökte logvera_fotolar.json (kimlik ve tür; bilgisayardaki Logvera
+// bununla aynı fotoğrafı iki kez eklemez). yalniz verilirse yalnızca o kayıtlar konur, numaralar yine tüm listeye göre.
+async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
+  const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [], liste = [];
+  for (const tur of FOTO_TURLERI) {
+    tumKayitlar.filter((k) => k.tur === tur).forEach((kayit, i) => {
+      if (yalniz && !yalniz.includes(kayit)) return;
+      const ad = `${klasor}/${kuyuAdi}_${tur}_${String(i + 1).padStart(2, "0")}.${fotoUzantisi(kayit)}`;
+      dosyalar.push({ ad, blob: kayit.blob });
+      liste.push({ dosya: ad, kimlik: kayit.kimlik, tur, eklenme: kayit.eklenme });
+    });
+  }
+  const bilgi = new Blob([JSON.stringify({ kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste }, null, 2)], { type: "application/json" });
+  return { zip: await zipOlustur([...dosyalar, { ad: "logvera_fotolar.json", blob: bilgi }]), adet: dosyalar.length };
+}
+
+async function aktarilmamislariSay() {
+  const kuyu = aktifKimlik;
+  try {
+    const sayi = (await kuyuFotograflari(kuyu)).filter((k) => !k.aktarildi).length;
+    if (kuyu === aktifKimlik) { aktarilmamisFoto = sayi; kaydetIsaretiniCiz(); }
+  } catch (hata) { /* fotoğraf deposu açılamadıysa nokta yalnız kuyu dosyasına bakar */ }
+}
+
+async function fotolariAktarildiYap(kayitlar) {
+  await fotoIslem("readwrite", (depo) => kayitlar.forEach((k) => depo.put({ ...k, aktarildi: true })));
+  aktarilmamisFoto = 0;
+  kaydetIsaretiniCiz();
+}
+
 async function fotoZipPaylas() {
-  const kuyuAdi = (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
+  const kuyuAdi = fotoKuyuAdi();
   if (!kuyuAdi) return hataGoster("Önce kuyu adını yazın (Manevra › Kuyu bilgileri). Fotoğraflar kuyu adıyla adlandırılır.");
   const kayitlar = await kuyuFotograflari();
   if (!kayitlar.length) return hataGoster("Bu kuyu için henüz fotoğraf yok.");
   durumYaz("ZIP hazırlanıyor…");
-  const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [];
-  for (const tur of FOTO_TURLERI) {
-    kayitlar.filter((k) => k.tur === tur).forEach((kayit, i) => {
-      dosyalar.push({ ad: `${klasor}/${kuyuAdi}_${tur}_${String(i + 1).padStart(2, "0")}.${fotoUzantisi(kayit)}`, blob: kayit.blob });
-    });
-  }
-  const zip = await zipOlustur(dosyalar);
-  const ad = `${klasor}.zip`, dosya = new File([zip], ad, { type: "application/zip" });
+  const { zip, adet } = await fotoZipiHazirla(kuyuAdi, kayitlar);
+  const ad = `${kuyuAdi} Fotoğrafları.zip`, dosya = new File([zip], ad, { type: "application/zip" });
   if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
     try {
       await navigator.share({ files: [dosya], title: ad });
-      durumYaz(`ZIP hazır: ${ad} (${dosyalar.length} fotoğraf)`);
+      durumYaz(`ZIP hazır: ${ad} (${adet} fotoğraf)`);
     } catch (hata) {
       if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
     }
@@ -1576,7 +1633,7 @@ async function fotoZipPaylas() {
   const baglanti = Object.assign(document.createElement("a"), { href: URL.createObjectURL(dosya), download: ad });
   baglanti.click();
   setTimeout(() => URL.revokeObjectURL(baglanti.href), 10000);
-  durumYaz(`İndirildi: ${ad} (${dosyalar.length} fotoğraf)`);
+  durumYaz(`İndirildi: ${ad} (${adet} fotoğraf)`);
 }
 
 function fotolariAc() {
@@ -3106,7 +3163,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v28";
+const SURUM = "v29";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
