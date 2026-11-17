@@ -93,22 +93,25 @@
       </div>
     </div>
 
-    <div class="bolum-secici" role="tablist">
-      <button class="secili" data-liste="manevra" role="tab">Manevralar</button>
-      <button data-liste="derinlik" role="tab">Numune Derinliği</button>
-    </div>
-    <div class="kopya-satiri" id="kopya-manevra">
-      <span></span>
+    <div class="liste-baslik">
+      <span>Manevralar</span>
       <button class="kucuk" data-kopyala="manevra">Kopyala</button>
     </div>
-    <div class="kopya-satiri" id="kopya-derinlik" hidden>
-      <span>Düzeltilmiş SPT'ler mavi</span>
+    <div class="tablo" id="tablo-manevra"></div>
+  </section>
+
+  <!-- ND: NUMUNE DERİNLİĞİ -->
+  <section class="sekme" id="sekme-derinlik" hidden>
+    <div class="liste-baslik">
+      <span>Numune Derinliği <span class="ipucu">manevra sınırı ve karşısında gerçek derinlik; aralığı düzeltilmiş SPT'ler mavi</span></span>
+    </div>
+    <div class="kopya-satiri">
+      <span>Kopyala:</span>
       <button class="kucuk" data-kopyala="derinlik-d">Derinlik</button>
       <button class="kucuk" data-kopyala="derinlik-m">Metin</button>
-      <button class="kucuk" data-kopyala="derinlik">Kopyala</button>
+      <button class="kucuk" data-kopyala="derinlik">İkisi</button>
     </div>
-    <div class="tablo" id="tablo-manevra"></div>
-    <div class="tablo" id="tablo-derinlik" hidden></div>
+    <div class="tablo" id="tablo-derinlik"></div>
   </section>
 
   <!-- SPT -->
@@ -269,6 +272,7 @@
   <span class="sekme-balon" id="sekme-balon" aria-hidden="true"></span>
   <div class="sekme-dugmeler">
   <button data-sekme="manevra" class="secili"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 9.3h14M5 14.6h14M5 20h14"/><path d="M12 4v16" stroke-dasharray="2 2"/></svg>Manevralar</button>
+  <button data-sekme="derinlik" aria-label="Numune Derinliği"><svg viewBox="0 0 24 24"><path d="M5 4v16M5 4h4M5 9.3h7M5 14.6h4M5 20h7"/><path d="M17 5v14M14.5 16.5 17 19l2.5-2.5"/></svg>ND</button>
   <button data-sekme="spt"><svg viewBox="0 0 24 24"><path d="M7 3h10v5H7zM12 8v13M9 21h6"/></svg>SPT</button>
   <button data-sekme="tcr"><svg viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>Kaya Özellikleri</button>
   <button data-sekme="numune"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>Numune</button>

@@ -142,10 +142,6 @@ button.metin.kalin { font-weight: 700; }
   margin: 4px 2px 6px; font-weight: 600; font-size: 15px;
 }
 .liste-baslik button { margin-left: 4px; }
-/* Manevra sekmesinde Manevralar / Numune Derinliği geçişi */
-.bolum-secici { display: flex; gap: 3px; padding: 3px; margin: 4px 0 8px; background: var(--ikincil); border-radius: 11px; }
-.bolum-secici button { flex: 1; min-height: 36px; padding: 6px 8px; font-size: 14px; background: none; color: var(--soluk); border-radius: 8px; }
-.bolum-secici button.secili { background: var(--kart); color: var(--vurgu); font-weight: 700; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
 #tablo-derinlik .satir { grid-template-columns: 1fr 1fr; text-align: center; }
 .satir.duzeltilmis { color: var(--vurgu); font-weight: 700; }
 .kopya-satiri { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: -2px 2px 8px; font-size: 13px; color: var(--soluk); }
@@ -251,15 +247,15 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 .sekme-kenar path { fill: none; stroke-linejoin: round; }
 .sekme-kenar .dis { stroke: rgba(15, 23, 42, .14); stroke-width: 2.5; }
 .sekme-kenar .ic { stroke: rgba(255, 255, 255, .9); stroke-width: 1; }
-.sekme-dugmeler { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); height: 56px; margin-top: 28px; pointer-events: auto; }
+.sekme-dugmeler { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); height: 56px; margin-top: 28px; pointer-events: auto; }
 .sekmeler button {
   position: relative; z-index: 1; background: none; border-radius: 0; min-height: 0; height: 56px; padding: 0;
-  flex-direction: column; gap: 2px; font-size: 10.5px; font-weight: 600; color: #334155;
+  flex-direction: column; gap: 2px; font-size: 9.5px; font-weight: 600; color: #334155; letter-spacing: -.1px;
   /* "Kaya Özellikleri" iki satıra iner: simgeler hep aynı hizada kalsın diye içerik üstten dizilir */
   justify-content: flex-start; padding-top: 7px; line-height: 1.15; text-align: center;
 }
 .sekmeler button:active { background: none; }
-.sekmeler button svg { width: 20px; height: 20px; }
+.sekmeler button svg { width: 19px; height: 19px; }
 /* seçili sekmenin simgesi balonda gösterilir; yazısı çubukta, balonun altında kalır */
 .sekmeler button.secili { color: var(--vurgu); font-weight: 700; justify-content: flex-end; padding-top: 0; padding-bottom: 6px; }
 .sekmeler button.secili svg { display: none; }

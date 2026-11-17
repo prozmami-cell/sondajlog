@@ -265,12 +265,6 @@ function derinlikCiz() {
     "Henüz manevra yok");
 }
 
-function listeSec(ad) {
-  for (const dugme of document.querySelectorAll(".bolum-secici button")) dugme.classList.toggle("secili", dugme.dataset.liste === ad);
-  $("tablo-manevra").hidden = $("kopya-manevra").hidden = ad !== "manevra";
-  $("tablo-derinlik").hidden = $("kopya-derinlik").hidden = ad !== "derinlik";
-}
-
 function sptAraliginiKaydet(sifirla = false) {
   const secilen = $("spt-secim").value;
   const manevra = veri.manevralar.find((m) => m[2] === secilen);
@@ -1100,7 +1094,7 @@ function katmaniKapat(kimlik) {
 }
 
 // ---------- Sekmeler ----------
-const SEKME_SIRASI = ["manevra", "spt", "tcr", "numune", "tanim", "foto"];
+const SEKME_SIRASI = ["manevra", "derinlik", "spt", "tcr", "numune", "tanim", "foto"];
 let aktifSekme = "manevra";
 let sekmeGecisiniBitir = null;
 const hareketAzaltilmis = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -2736,7 +2730,6 @@ function baglantilariKur() {
   $("dugme-spt-aralik-kaydet").onclick = () => sptAraliginiKaydet();
   $("dugme-spt-aralik-sifirla").onclick = () => sptAraliginiKaydet(true);
   $("spt-aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") sptAraliginiKaydet(); });
-  for (const dugme of document.querySelectorAll(".bolum-secici button")) dugme.onclick = () => listeSec(dugme.dataset.liste);
   ["darbe-1", "darbe-2", "darbe-3"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
     if (olay.key !== "Enter") return;
     i < 2 ? $(hepsi[i + 1]).focus() : sptKaydet();
@@ -2791,7 +2784,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v25";
+const SURUM = "v26";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
