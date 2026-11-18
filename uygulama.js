@@ -400,12 +400,18 @@ function sptListesi() {
 
 // Numune Derinliği (LogPlot Depth / Text): manevra sınırları ve karşılarına yazılacak gerçek derinlik.
 // Aralığı düzeltilmiş SPT'de manevra ucunun karşısına SPT'nin gerçek ucu gelir (24,45 -> 24,14).
-function numuneDerinligiSatirlari() {
+// {sınır: [karşılığı, onu veren SPT]}; bitişik iki SPT'nin ortak sınırında sonraki SPT'nin düzeltmesi geçerlidir
+function numuneDerinligiKarsiliklari() {
   const karsilik = {};
   for (const [bas, bit, tip] of veri.manevralar) {
     const aralik = veri.spt_araliklari[tip];
-    if (aralik) { karsilik[bas] = aralik[0]; karsilik[bit] = aralik[1]; }
+    if (aralik) { karsilik[bas] = [aralik[0], tip]; karsilik[bit] = [aralik[1], tip]; }
   }
+  return karsilik;
+}
+
+function numuneDerinligiSatirlari() {
+  const karsilik = Object.fromEntries(Object.entries(numuneDerinligiKarsiliklari()).map(([s, [d]]) => [s, d]));
   const sinirlar = [];
   for (const [bas, bit] of veri.manevralar) {
     for (const derinlik of [bas, bit]) if (sinirlar[sinirlar.length - 1] !== derinlik) sinirlar.push(derinlik);
@@ -423,6 +429,8 @@ function derinlikCiz() {
 // Bu sınırı düzenlemek: SPT'nin bir ucuysa SPT'nin gerçek aralığı (Metin; manevra değişmez), değilse o sınırda biten
 // manevranın aralığı (Derinlik; Manevralar sekmesindeki düzenlemeyle aynı).
 function derinlikDuzenle(derinlik) {
+  const kaynak = numuneDerinligiKarsiliklari()[derinlik];  // gösterilen değeri veren SPT
+  if (kaynak) return sptDuzenleAc(kaynak[1]);
   for (const uc of [1, 0]) {
     const spt = veri.manevralar.find((m) => m[2].startsWith("SPT") && m[uc] === derinlik);
     if (spt) return sptDuzenleAc(spt[2]);
@@ -3657,7 +3665,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v35";
+const SURUM = "v36";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
