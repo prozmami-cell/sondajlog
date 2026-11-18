@@ -1927,7 +1927,9 @@ function makineBagla() {
 // saklanır; localStorage'a sığmazlar. Her fotoğrafın küçük bir önizlemesi de saklanır, ekranda yalnızca o çizilir
 // (tam boy fotoğrafları çözmek telefonu yorar). ZIP masaüstündeki "Kuyu Fotoğrafları" sayfasıyla aynı adlandırmayla,
 // tek klasörde: "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg".
-const FOTO_TURLERI = ["Lokasyon", "Makine", "Sandik", "Beton"];
+const FOTO_TURLERI = ["Lokasyon", "Makine", "Sandik", "Numune", "Beton"];
+// bu türlerde tek ve güncel görsel tutulur: yenisi eklenince eskisi silinir (numune listesi değişir)
+const TEK_GORSEL_TURLERI = ["Numune"];
 let fotoDbSozu = null;
 
 function fotoDb() {
@@ -1984,6 +1986,31 @@ async function fotoEkle(tur, dosyalar) {
   }
   await fotolariCiz();
   durumYaz(`${eklenen} fotoğraf eklendi`);
+}
+
+// Numune Listesi sekmesindeki görsel (JPEG İndir'deki aynısı) Kuyu Fotoğrafları'na; varsa eskisinin yerine geçer.
+// Bilgisayara aktarılınca orada da eskisinin yerine geçer.
+async function numuneyiFotolaraEkle() {
+  if (!(veri.kuyu_bilgileri.kuyu || "").trim()) return hataGoster("Önce kuyu adını yazın (Manevra › Kuyu bilgileri); görsel kuyu adıyla kaydedilir.");
+  if (!numuneSatirlari().length) return hataGoster("Numune listesi boş; önce numuneleri ekleyin.");
+  try {
+    const blob = await numuneGorseli();
+    const dosya = new File([blob], "Numune Listesi.jpg", { type: "image/jpeg" });
+    const kucuk = await kucukOnizleme(dosya).catch(() => null);
+    const eskiler = (await kuyuFotograflari()).filter((k) => TEK_GORSEL_TURLERI.includes(k.tur));
+    await fotoIslem("readwrite", (depo) => {
+      eskiler.forEach((k) => depo.delete(k.kimlik));
+      depo.put({ kimlik: yeniKimlik(), kuyu: aktifKimlik, tur: "Numune", eklenme: Date.now(), blob: dosya, kucuk, tip: "image/jpeg", ad: dosya.name });
+    });
+    navigator.storage?.persist?.().catch(() => {});
+    await fotolariCiz();
+    const ne = eskiler.length ? "güncellendi" : "eklendi";
+    durumYaz(`Numune listesi Kuyu Fotoğrafları'na ${ne}`);
+    sor("Kuyu Fotoğrafları", `Numune listesi görseli Kuyu Fotoğrafları'na ${ne}. Kaydet'e basınca bilgisayara da gider.`,
+      [["Tamam", true, true], ["Fotoğrafları Aç", "ac"]]).then((cevap) => { if (cevap === "ac") fotolariAc(); });
+  } catch (hata) {
+    hataGoster("Görsel eklenemedi: " + (hata?.message || hata));
+  }
 }
 
 async function fotoSil(kimlik) {
@@ -3630,6 +3657,8 @@ function baglantilariKur() {
   $("ud-ad").addEventListener("keydown", (olay) => { if (olay.key === "Enter") (udSecili ? udDuzenle : udEkle)(); });
   $("dugme-numune-paylas").onclick = numuneListesiniPaylas;
   $("dugme-numune-jpeg").onclick = numuneJpegIndir;
+  $("dugme-numune-fotolara").onclick = numuneyiFotolaraEkle;
+  $("dugme-numune-git").onclick = () => { katmaniKapat("katman-fotolar"); sekmeSec("numune"); };
   $("numune-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("numune-bitis").focus(); });
   $("numune-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") numuneKarotEkle(); });
   ["tcr-tcr", "tcr-scr", "tcr-rqd"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
@@ -3665,7 +3694,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v36";
+const SURUM = "v37";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
