@@ -143,6 +143,7 @@ button.metin.kalin { font-weight: 700; }
 }
 .liste-baslik button { margin-left: 4px; }
 #tablo-derinlik .satir { grid-template-columns: 1fr 1fr; text-align: center; }
+#tablo-derinlik .satir:not(.baslik) { cursor: pointer; }
 .satir.duzeltilmis { color: var(--vurgu); font-weight: 700; }
 .kopya-satiri { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: -2px 2px 8px; font-size: 13px; color: var(--soluk); }
 .kopya-satiri span { margin-right: auto; }

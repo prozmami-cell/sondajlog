@@ -201,11 +201,41 @@ function tcrSonuclariniTasi(sonuclar, aralikTasima) {
   return { yeniSonuclar, notlar, silinen };
 }
 
-let duzenlenenSira = -1;
+let duzenlenenSira = -1, duzenlenenSpt = null;
+
+function sptDuzenleAc(tip) {
+  const manevra = veri.manevralar.find((m) => m[2] === tip);
+  if (!manevra) return;
+  duzenlenenSira = -1;
+  duzenlenenSpt = tip;
+  const [bas, bit] = veri.spt_araliklari[tip] || manevra;
+  $("aralik-baslik").textContent = `SPT Aralığı — ${tip}`;
+  $("aralik-bilgi").textContent = `Manevra ${manevra[0]}-${manevra[1]} m (değişmez). SPT 45 cm ilerlemediyse gerçek aralığı yazın; Numune Derinliği'nde manevra ucunun karşısına bu yazılır.`;
+  $("aralik-bas").value = bas;
+  $("aralik-bit").value = bit;
+  $("aralik-bitisik-satir").hidden = true;
+  $("aralik-sifirla").hidden = !veri.spt_araliklari[tip];
+  $("aralik-hata").hidden = true;
+  ["aralik-bas", "aralik-bit"].forEach((k) => $(k).classList.remove("hatali"));
+  $("aralik-duzen").hidden = false;
+}
+
+function sptDuzenleKaydet(sifirla = false) {
+  const hata = sptAraligiUygula(duzenlenenSpt, sifirla ? null : $("aralik-bas").value, sifirla ? null : $("aralik-bit").value);
+  if (hata) {
+    $("aralik-hata").textContent = hata[0];
+    $("aralik-hata").hidden = false;
+    $(hata[1] === "bit" ? "aralik-bit" : "aralik-bas").classList.add("hatali");
+    return;
+  }
+  manevraDuzenleKapat();
+}
 
 function manevraDuzenleAc(sira) {
   const [bas, bit, tip] = veri.manevralar[sira];
   duzenlenenSira = sira;
+  duzenlenenSpt = null;
+  $("aralik-sifirla").hidden = true;
   $("aralik-baslik").textContent = `Aralığı Düzenle — ${tip}`;
   $("aralik-bilgi").textContent = `Şimdiki aralık ${bas}-${bit} m. Numune tipi ve adı değişmez; SPT değerleri bu numuneye bağlı kalır.`;
   $("aralik-bas").value = bas;
@@ -225,6 +255,7 @@ function manevraDuzenleAc(sira) {
 function manevraDuzenleKapat() {
   $("aralik-duzen").hidden = true;
   duzenlenenSira = -1;
+  duzenlenenSpt = null;
 }
 
 function manevraAraliginiKaydet() {
@@ -383,21 +414,34 @@ function numuneDerinligiSatirlari() {
 }
 
 function derinlikCiz() {
+  const satirlar = numuneDerinligiSatirlari();
   satirlariCiz($("tablo-derinlik"), ["Derinlik", "Metin"],
-    numuneDerinligiSatirlari().map(([d, m]) => ({ hucreler: [d, m], sinif: d !== m ? "spt duzeltilmis" : "" })),
-    "Henüz manevra yok");
+    satirlar.map(([d, m]) => ({ hucreler: [d, m], sinif: d !== m ? "spt duzeltilmis" : "" })),
+    "Henüz manevra yok").forEach((satir, i) => satir.addEventListener("click", () => derinlikDuzenle(satirlar[i][0])));
 }
 
-function sptAraliginiKaydet(sifirla = false) {
-  const secilen = $("spt-secim").value;
+// Bu sınırı düzenlemek: SPT'nin bir ucuysa SPT'nin gerçek aralığı (Metin; manevra değişmez), değilse o sınırda biten
+// manevranın aralığı (Derinlik; Manevralar sekmesindeki düzenlemeyle aynı).
+function derinlikDuzenle(derinlik) {
+  for (const uc of [1, 0]) {
+    const spt = veri.manevralar.find((m) => m[2].startsWith("SPT") && m[uc] === derinlik);
+    if (spt) return sptDuzenleAc(spt[2]);
+  }
+  const sira = veri.manevralar.findIndex((m) => m[1] === derinlik);
+  if (sira >= 0) return manevraDuzenleAc(sira);
+  if (veri.manevralar[0]?.[0] === derinlik) manevraDuzenleAc(0);
+}
+
+// SPT'nin gerçek aralığını yazar (yazilar null ise manevra aralığına döner). Hata varsa [mesaj, hatalı alan], yoksa null.
+function sptAraligiUygula(secilen, basYazi, bitYazi) {
   const manevra = veri.manevralar.find((m) => m[2] === secilen);
-  if (!manevra) return hataGoster("Önce bir SPT seçin.", "spt-secim");
-  if (sifirla) {
+  if (!manevra) return ["Önce bir SPT seçin.", "bas"];
+  if (basYazi === null) {
     delete veri.spt_araliklari[secilen];
   } else {
-    const bas = sayiya($("spt-aralik-bas").value), bit = sayiya($("spt-aralik-bit").value);
-    if (bas === null || bas < 0) return hataGoster("Başlangıcı sayı olarak yazın (ör. 21,00).", "spt-aralik-bas");
-    if (bit === null || r2(bit - bas) <= 0) return hataGoster("Bitiş, başlangıçtan büyük olmalı (ör. 21,03).", "spt-aralik-bit");
+    const bas = sayiya(basYazi), bit = sayiya(bitYazi);
+    if (bas === null || bas < 0) return ["Başlangıcı sayı olarak yazın (ör. 21,00).", "bas"];
+    if (bit === null || r2(bit - bas) <= 0) return ["Bitiş, başlangıçtan büyük olmalı (ör. 21,03).", "bit"];
     const yeni = [yaziya(r2(bas)), yaziya(r2(bit))];
     if (yeni[0] === manevra[0] && yeni[1] === manevra[1]) delete veri.spt_araliklari[secilen];
     else veri.spt_araliklari[secilen] = yeni;
@@ -408,7 +452,15 @@ function sptAraliginiKaydet(sifirla = false) {
   sptCiz(secilen);
   numuneCiz(false);
   derinlikCiz();
+  return null;
 }
+
+function sptAraliginiKaydet(sifirla = false) {
+  const secilen = $("spt-secim").value;
+  const hata = sptAraligiUygula(secilen, sifirla ? null : $("spt-aralik-bas").value, sifirla ? null : $("spt-aralik-bit").value);
+  if (hata) return hataGoster(hata[0], hata[1] === "bit" ? "spt-aralik-bit" : secilen ? "spt-aralik-bas" : "spt-secim");
+}
+
 
 // LogPlot SPT-N grafiği: her SPT, başlangıç derinliğinin 0,25 m altına N değeriyle yazılır (1,50-1,95 -> 1,75)
 // refü olan SPT'lerde (N = R) grafiğe 100 yazılır; SPT listesindeki N yine R kalır
@@ -3535,7 +3587,8 @@ function baglantilariKur() {
   $("spt-secim").onchange = sptKutulariniDoldur;
   $("dugme-spt-kaydet").onclick = sptKaydet;
   $("dugme-spt-sil").onclick = sptSil;
-  $("aralik-kaydet").onclick = manevraAraliginiKaydet;
+  $("aralik-kaydet").onclick = () => (duzenlenenSpt ? sptDuzenleKaydet() : manevraAraliginiKaydet());
+  $("aralik-sifirla").onclick = () => sptDuzenleKaydet(true);
   makineBagla();
   $("dugme-kuyu-fotolari").onclick = fotolariAc;
   $("dugme-foto-zip").onclick = fotoZipPaylas;
@@ -3546,7 +3599,7 @@ function baglantilariKur() {
   for (const tur of FOTO_TURLERI) $("foto-sayi-" + tur).dataset.bos = $("foto-sayi-" + tur).textContent;
   $("aralik-vazgec").onclick = manevraDuzenleKapat;
   $("aralik-duzen").onclick = (olay) => { if (olay.target === $("aralik-duzen")) manevraDuzenleKapat(); };
-  $("aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") manevraAraliginiKaydet(); });
+  $("aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("aralik-kaydet").click(); });
   $("dugme-spt-aralik-kaydet").onclick = () => sptAraliginiKaydet();
   $("dugme-spt-aralik-sifirla").onclick = () => sptAraliginiKaydet(true);
   $("spt-aralik-bit").addEventListener("keydown", (olay) => { if (olay.key === "Enter") sptAraliginiKaydet(); });
@@ -3604,7 +3657,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v34";
+const SURUM = "v35";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
