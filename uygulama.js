@@ -2075,7 +2075,8 @@ function crc32(baytlar) {
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
 
-async function zipOlustur(dosyalar) {
+// yorum: ZIP'in arşiv açıklaması (dosya olarak görünmez; en çok 65535 bayt)
+async function zipOlustur(dosyalar, yorum = "") {
   const kodlayici = new TextEncoder(), parcalar = [], merkez = [];
   const simdi = new Date();
   const saat = (simdi.getHours() << 11) | (simdi.getMinutes() << 5) | (simdi.getSeconds() >> 1);
@@ -2097,10 +2098,12 @@ async function zipOlustur(dosyalar) {
     konum += 30 + adBaytlari.length + boy;
   }
   const merkezBoyu = merkez.reduce((t, p) => t + p.byteLength, 0);
+  const yorumBaytlari = kodlayici.encode(yorum);
+  if (yorumBaytlari.length > 65535) throw new Error("ZIP açıklaması çok uzun");
   const son = new DataView(new ArrayBuffer(22));
-  [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, dosyalar.length, 2], [10, dosyalar.length, 2], [12, merkezBoyu, 4], [16, konum, 4], [20, 0, 2]]
+  [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, dosyalar.length, 2], [10, dosyalar.length, 2], [12, merkezBoyu, 4], [16, konum, 4], [20, yorumBaytlari.length, 2]]
     .forEach(([o, d, u]) => (u === 4 ? son.setUint32(o, d, true) : son.setUint16(o, d, true)));
-  return new Blob([...parcalar, ...merkez, son], { type: "application/zip" });
+  return new Blob([...parcalar, ...merkez, son, yorumBaytlari], { type: "application/zip" });
 }
 
 function fotoUzantisi(kayit) {
@@ -2110,8 +2113,9 @@ function fotoUzantisi(kayit) {
 
 const fotoKuyuAdi = () => (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
 
-// ZIP: "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg" + kökte logvera_fotolar.json (kimlik ve tür; bilgisayardaki Logvera
-// bununla aynı fotoğrafı iki kez eklemez). yalniz verilirse yalnızca o kayıtlar konur, numaralar yine tüm listeye göre.
+// ZIP: yalnızca "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg". Bilgisayardaki Logvera'nın gereksindiği liste (kimlik, tür,
+// eklenme; aynı fotoğrafı iki kez eklememek için) dosya olarak değil ZIP'in arşiv açıklamasında: açınca görünmez.
+// yalniz verilirse yalnızca o kayıtlar konur, numaralar yine tüm listeye göre.
 async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
   const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [], liste = [];
   for (const tur of FOTO_TURLERI) {
@@ -2122,8 +2126,8 @@ async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
       liste.push({ dosya: ad, kimlik: kayit.kimlik, tur, eklenme: kayit.eklenme });
     });
   }
-  const bilgi = new Blob([JSON.stringify({ kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste }, null, 2)], { type: "application/json" });
-  return { zip: await zipOlustur([...dosyalar, { ad: "logvera_fotolar.json", blob: bilgi }]), adet: dosyalar.length };
+  const bilgi = JSON.stringify({ logvera: "fotolar", kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste });
+  return { zip: await zipOlustur(dosyalar, bilgi), adet: dosyalar.length };
 }
 
 async function aktarilmamislariSay() {
@@ -3694,7 +3698,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v37";
+const SURUM = "v38";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
