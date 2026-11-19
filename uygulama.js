@@ -1187,8 +1187,10 @@ async function paylas() {
       yeniFotolar = tumu.filter((k) => !k.aktarildi);
       if (yeniFotolar.length) {
         durumYaz("Fotoğraflar hazırlanıyor…");
-        const { zip } = await fotoZipiHazirla(kuyuAdi, tumu, yeniFotolar);
-        dosyalar.push(new File([zip], `${kuyuAdi} Fotoğrafları ${dosyaZamani()}.zip`, { type: "application/zip" }));
+        const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, tumu, yeniFotolar);
+        const ad = `${kuyuAdi} Fotoğrafları ${dosyaZamani()}`;
+        dosyalar.push(new File([zip], `${ad}.zip`, { type: "application/zip" }),
+          new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" }));  // ZIP'in yanında: bilgisayar fotoğrafları bununla alır
       }
     } catch (hata) {
       yeniFotolar = [];
@@ -2113,8 +2115,9 @@ function fotoUzantisi(kayit) {
 
 const fotoKuyuAdi = () => (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
 
-// ZIP: yalnızca "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg". Bilgisayardaki Logvera'nın gereksindiği liste (kimlik, tür,
-// eklenme; aynı fotoğrafı iki kez eklememek için) dosya olarak değil ZIP'in arşiv açıklamasında: açınca görünmez.
+// ZIP'te yalnızca fotoğraflar var ("<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg"; başka şirkete gönderilebilir, gizli bilgi
+// yok). Bilgisayardaki Logvera'nın gereksindiği liste (kimlik, tür, eklenme; aynı fotoğrafı iki kez eklememek için)
+// ayrı bir JSON'da döner; Kaydet onu ZIP'in yanında "<zip adı>.bilgi.json" olarak gönderir.
 // yalniz verilirse yalnızca o kayıtlar konur, numaralar yine tüm listeye göre.
 async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
   const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [], liste = [];
@@ -2126,8 +2129,8 @@ async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
       liste.push({ dosya: ad, kimlik: kayit.kimlik, tur, eklenme: kayit.eklenme });
     });
   }
-  const bilgi = JSON.stringify({ logvera: "fotolar", kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste });
-  return { zip: await zipOlustur(dosyalar, bilgi), adet: dosyalar.length };
+  const bilgi = JSON.stringify({ logvera: "fotolar", kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste }, null, 2);
+  return { zip: await zipOlustur(dosyalar), adet: dosyalar.length, bilgi };
 }
 
 async function aktarilmamislariSay() {
@@ -3698,7 +3701,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v38";
+const SURUM = "v39";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
