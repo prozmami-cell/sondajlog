@@ -250,7 +250,7 @@
   <section class="sekme" id="sekme-foto" hidden>
     <div class="kart">
       <div class="kart-baslik">Kuyu fotoğrafları <span class="ipucu">makine lokasyonu, makine, sandıklar ve kuyu betonu; tek ZIP olarak indirilir</span></div>
-      <button class="ana genis" id="dugme-kuyu-fotolari">Kuyu Fotoğraflarını Aç</button>
+      <button class="ana genis" id="dugme-kuyu-fotolari">Kuyu Fotoğrafları</button>
     </div>
     <div class="kart">
       <div class="kart-baslik">Sandık fotoğrafları</div>
@@ -359,52 +359,58 @@
 <!-- KUYU FOTOĞRAFLARI -->
 <div class="katman" id="katman-fotolar" hidden>
   <div class="katman-ust">
-    <button class="metin" data-kapat>Kapat</button>
-    <div class="katman-baslik">Kuyu Fotoğrafları</div>
-    <button class="metin" id="dugme-foto-zip-ust">ZIP</button>
+    <button class="metin" id="foto-geri">Kapat</button>
+    <div class="katman-baslik" id="foto-baslik">Kuyu Fotoğrafları</div>
+    <button class="metin" id="dugme-foto-zip-ust" style="visibility: hidden">ZIP</button>
   </div>
   <div class="katman-govde">
-    <p class="aciklama" id="foto-kuyu-bilgi"></p>
-    <div class="kart">
-      <div class="kart-baslik">1. Makine lokasyonu <span class="ipucu" id="foto-sayi-Lokasyon">Makinenin kuyu başındaki konumu</span></div>
-      <div class="foto-izgara" id="foto-Lokasyon"></div>
-      <div class="iki">
-        <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Lokasyon" hidden></label>
-        <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Lokasyon" hidden></label>
+    <div id="foto-klasor-listesi">
+      <p class="aciklama">Her kuyunun kendi adıyla bir klasörü var; yeni kuyuya ad verince klasörü kendiliğinden oluşur. Fotoğraflarını görmek için klasöre dokunun.</p>
+      <div id="foto-klasorler"></div>
+    </div>
+    <div id="foto-detay" hidden>
+      <p class="aciklama" id="foto-kuyu-bilgi"></p>
+      <div class="kart">
+        <div class="kart-baslik">1. Makine lokasyonu <span class="ipucu" id="foto-sayi-Lokasyon">Makinenin kuyu başındaki konumu</span></div>
+        <div class="foto-izgara" id="foto-Lokasyon"></div>
+        <div class="iki">
+          <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Lokasyon" hidden></label>
+          <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Lokasyon" hidden></label>
+        </div>
       </div>
-    </div>
-    <div class="kart">
-      <div class="kart-baslik">2. Makine <span class="ipucu" id="foto-sayi-Makine">Makinenin fotoğrafları</span></div>
-      <div class="foto-izgara" id="foto-Makine"></div>
-      <div class="iki">
-        <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Makine" hidden></label>
-        <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Makine" hidden></label>
+      <div class="kart">
+        <div class="kart-baslik">2. Makine <span class="ipucu" id="foto-sayi-Makine">Makinenin fotoğrafları</span></div>
+        <div class="foto-izgara" id="foto-Makine"></div>
+        <div class="iki">
+          <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Makine" hidden></label>
+          <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Makine" hidden></label>
+        </div>
       </div>
-    </div>
-    <div class="kart">
-      <div class="kart-baslik">3. Sandıklar <span class="ipucu" id="foto-sayi-Sandik">Kuyu bitince karot sandıkları</span></div>
-      <div class="foto-izgara" id="foto-Sandik"></div>
-      <div class="iki">
-        <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Sandik" hidden></label>
-        <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Sandik" hidden></label>
+      <div class="kart">
+        <div class="kart-baslik">3. Sandıklar <span class="ipucu" id="foto-sayi-Sandik">Kuyu bitince karot sandıkları</span></div>
+        <div class="foto-izgara" id="foto-Sandik"></div>
+        <div class="iki">
+          <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Sandik" hidden></label>
+          <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Sandik" hidden></label>
+        </div>
       </div>
-    </div>
-    <div class="kart">
-      <div class="kart-baslik">4. Numune listesi <span class="ipucu" id="foto-sayi-Numune">Numune sekmesindeki "Fotoğraflara Ekle" ile gelir</span></div>
-      <div class="foto-izgara" id="foto-Numune"></div>
-      <button class="genis" id="dugme-numune-git">Numune Listesine Git</button>
-    </div>
-    <div class="kart">
-      <div class="kart-baslik">5. Kuyu betonu <span class="ipucu" id="foto-sayi-Beton">Kuyu ağzı betonu</span></div>
-      <div class="foto-izgara" id="foto-Beton"></div>
-      <div class="iki">
-        <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Beton" hidden></label>
-        <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Beton" hidden></label>
+      <div class="kart">
+        <div class="kart-baslik">4. Numune listesi <span class="ipucu" id="foto-sayi-Numune">Numune sekmesindeki "Fotoğraflara Ekle" ile gelir</span></div>
+        <div class="foto-izgara" id="foto-Numune"></div>
+        <button class="genis" id="dugme-numune-git">Numune Listesine Git</button>
       </div>
+      <div class="kart">
+        <div class="kart-baslik">5. Kuyu betonu <span class="ipucu" id="foto-sayi-Beton">Kuyu ağzı betonu</span></div>
+        <div class="foto-izgara" id="foto-Beton"></div>
+        <div class="iki">
+          <label class="dosya-dugmesi ana">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" data-foto-tur="Beton" hidden></label>
+          <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Beton" hidden></label>
+        </div>
+      </div>
+      <button class="ana genis" id="dugme-foto-zip">ZIP Olarak İndir / Paylaş</button>
+      <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara:</b> üstteki <b>Kaydet</b> yeni fotoğrafları kuyu dosyasıyla birlikte gönderir (OneDrive › Logvera); bilgisayarda "Telefonu İzle" açıksa fotoğraflar kendiliğinden kuyunun klasörüne eklenir.</p>
+      <p class="aciklama">ZIP'te yalnızca fotoğraflar var, tek klasörde: SK-1_Lokasyon_01.jpg, SK-1_Sandik_01.jpg … Başka firmaya olduğu gibi gönderilebilir.</p>
     </div>
-    <button class="ana genis" id="dugme-foto-zip">ZIP Olarak İndir / Paylaş</button>
-    <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara:</b> üstteki <b>Kaydet</b> yeni fotoğrafları kuyu dosyasıyla birlikte gönderir (OneDrive › Logvera); bilgisayarda "Telefonu İzle" açıksa fotoğraflar kendiliğinden kuyunun klasörüne eklenir.</p>
-    <p class="aciklama">ZIP'te yalnızca fotoğraflar var, tek klasörde: SK-1_Lokasyon_01.jpg, SK-1_Sandik_01.jpg … Başka firmaya olduğu gibi gönderilebilir.</p>
   </div>
 </div>
 

@@ -321,6 +321,8 @@ main { position: relative; overflow-x: clip; }
 .kuyu > div { flex: 1; min-width: 0; }
 .kuyu b { display: block; }
 .kuyu small { color: var(--soluk); }
+.kuyu .gonderilmedi { color: #B45309; }
+#foto-klasorler .kuyu > div { cursor: pointer; }
 
 .goruntuleyici { position: relative; height: 30vh; min-height: 170px; background: #222; flex: none; }
 #goruntu { width: 100%; height: 100%; display: block; touch-action: none; }

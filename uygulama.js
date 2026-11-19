@@ -76,6 +76,7 @@ function kaydet() {
   kuyular[aktifKimlik] = { ...kuyular[aktifKimlik], veri, guncelleme: Date.now() };
   depoYaz(DEPO_KUYULAR, kuyular);
   depoYaz(DEPO_AKTIF, aktifKimlik);
+  klasoruKaydet(aktifKimlik, veri.kuyu_bilgileri.kuyu);  // Kuyu Fotoğrafları'nda aynı adla klasör
   kaydetIsaretiniCiz();
 }
 
@@ -1180,22 +1181,25 @@ async function paylas() {
   const metin = JSON.stringify(veri, null, 2);
   const dosya = new File([metin], dosyaAdi(), { type: "application/json" });
   let dosyalar = [dosya], yeniFotolar = [];
-  const kuyuAdi = fotoKuyuAdi();
-  if (kuyuAdi) {
-    try {
-      const tumu = await kuyuFotograflari();
-      yeniFotolar = tumu.filter((k) => !k.aktarildi);
-      if (yeniFotolar.length) {
-        durumYaz("Fotoğraflar hazırlanıyor…");
-        const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, tumu, yeniFotolar);
-        const ad = `${kuyuAdi} Fotoğrafları ${dosyaZamani()}`;
-        dosyalar.push(new File([zip], `${ad}.zip`, { type: "application/zip" }),
-          new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" }));  // ZIP'in yanında: bilgisayar fotoğrafları bununla alır
-      }
-    } catch (hata) {
-      yeniFotolar = [];
-      durumYaz("Fotoğraflar eklenemedi: " + (hata?.message || hata));
+  try {
+    // adı olan her klasörün bilgisayara gitmemiş fotoğrafları: klasör başına bir ZIP (yalnız fotoğraf) + yanında bilgi
+    const tumu = await tumFotograflar(), zaman = dosyaZamani();
+    const klasorler = [...new Set(tumu.filter((k) => !k.aktarildi && klasorAdi(k.kuyu)).map((k) => k.kuyu))];
+    if (klasorler.length) durumYaz("Fotoğraflar hazırlanıyor…");
+    for (const kimlik of klasorler) {
+      const hamAd = klasorAdi(kimlik), kuyuAdi = dosyaAdinaUygun(hamAd);
+      const klasorunkiler = tumu.filter((k) => k.kuyu === kimlik).sort((a, b) => a.eklenme - b.eklenme);
+      const gidecek = klasorunkiler.filter((k) => !k.aktarildi);
+      const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, klasorunkiler, gidecek, hamAd);
+      const ad = `${kuyuAdi} Fotoğrafları ${zaman}`;
+      dosyalar.push(new File([zip], `${ad}.zip`, { type: "application/zip" }),
+        new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" }));  // ZIP'in yanında: bilgisayar fotoğrafları bununla alır
+      yeniFotolar.push(...gidecek);
     }
+  } catch (hata) {
+    dosyalar = [dosya];
+    yeniFotolar = [];
+    durumYaz("Fotoğraflar eklenemedi: " + (hata?.message || hata));
   }
   const makineGidecek = makineBekliyor();
   if (makineGidecek) dosyalar.push(await makineAktarimDosyasi());
@@ -1282,9 +1286,9 @@ function kuyulariCiz() {
       const cevap = await sor("Kuyuyu sil", `"${v.kuyu_bilgileri?.kuyu || "Adsız kuyu"}" telefondan silinsin mi? Bu geri alınamaz.`,
         [["Sil", true, true], ["Vazgeç", false]]);
       if (!cevap) return;
+      klasoruKaydet(kimlik, v.kuyu_bilgileri?.kuyu);  // fotoğrafları silinmez; klasörü Kuyu Fotoğrafları'nda kalır
       delete kuyular[kimlik];
       depoYaz(DEPO_KUYULAR, kuyular);
-      kuyununFotograflariniSil(kimlik).catch(() => {});
       if (kimlik === aktifKimlik) {
         const kalan = Object.keys(kuyular);
         kalan.length ? kuyuAc(kalan[0]) : yeniKuyu();
@@ -1324,7 +1328,7 @@ function sekmeSec(ad) {
   for (const bolum of document.querySelectorAll(".sekme")) bolum.hidden = bolum !== yeni && !(gecis && bolum === eski);
   window.scrollTo(0, 0);
   if (gecis) sekmeGecisi(eski, yeni, SEKME_SIRASI.indexOf(ad) > SEKME_SIRASI.indexOf(onceki) ? 1 : -1, eskiUst, eskiSol, eskiGenislik);
-  if (ad === "foto") { motoruHazirla(); fotolariCiz(); }
+  if (ad === "foto") { motoruHazirla(); aktarilmamislariSay(); }
   if (ad === "tanim") tanimBoylariniAyarla();
 }
 
@@ -1925,14 +1929,42 @@ function makineBagla() {
 }
 
 // ---------- Kuyu fotoğrafları ----------
-// Makine lokasyonu, makine, sandık ve kuyu betonu fotoğrafları bu telefonda IndexedDB'de kuyuyla (aktifKimlik) birlikte
-// saklanır; localStorage'a sığmazlar. Her fotoğrafın küçük bir önizlemesi de saklanır, ekranda yalnızca o çizilir
+// Kuyu Fotoğrafları, Kuyular gibi kendi listesiyle çalışan ayrı bir sayfadır: her kuyunun kendi adıyla bir klasörü vardır
+// (klasör kimliği = kuyunun kimliği; kuyuya ad verilince oluşur, ad değişince klasör adı da değişir). Klasör açık kuyudan
+// bağımsız seçilir. Kuyu silinse de klasörü ve fotoğrafları kalır; klasör ancak bu sayfada açıkça silinir.
+// Fotoğraflar bu telefonda IndexedDB'de klasörün kimliğiyle saklanır; localStorage'a sığmazlar. Her fotoğrafın küçük bir önizlemesi de saklanır, ekranda yalnızca o çizilir
 // (tam boy fotoğrafları çözmek telefonu yorar). ZIP masaüstündeki "Kuyu Fotoğrafları" sayfasıyla aynı adlandırmayla,
 // tek klasörde: "<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg".
 const FOTO_TURLERI = ["Lokasyon", "Makine", "Sandik", "Numune", "Beton"];
 // bu türlerde tek ve güncel görsel tutulur: yenisi eklenince eskisi silinir (numune listesi değişir)
 const TEK_GORSEL_TURLERI = ["Numune"];
 let fotoDbSozu = null;
+const DEPO_FOTO_KLASOR = "sondajlog.fotoKlasorleri";  // {kimlik: {ad, guncelleme}}: kuyusu silinmiş klasörlerin adı burada kalır
+let fotoKlasoru = null;  // sayfada açık klasör (kuyu kimliği); null ise klasör listesi
+
+function fotoKlasorleri() {
+  const k = depoOku(DEPO_FOTO_KLASOR, {});
+  return k && typeof k === "object" ? k : {};
+}
+
+function klasoruKaydet(kimlik, ad) {
+  ad = String(ad || "").trim();
+  if (!kimlik || !ad) return;
+  const k = fotoKlasorleri();
+  if (k[kimlik]?.ad === ad) return;
+  k[kimlik] = { ad, guncelleme: Date.now() };
+  depoYaz(DEPO_FOTO_KLASOR, k);
+}
+
+function klasorAdi(kimlik) {
+  return (kuyular[kimlik]?.veri?.kuyu_bilgileri?.kuyu || "").trim() || fotoKlasorleri()[kimlik]?.ad || "";
+}
+
+const dosyaAdinaUygun = (ad) => ad.trim().replace(/[\\/:*?"<>|]/g, "_");
+
+async function tumFotograflar() {
+  return (await fotoIslem("readonly", (depo) => depo.getAll())) || [];
+}
 
 function fotoDb() {
   fotoDbSozu ??= new Promise((coz, reddet) => {
@@ -1954,7 +1986,7 @@ async function fotoIslem(kip, is) {
   });
 }
 
-async function kuyuFotograflari(kuyu = aktifKimlik) {
+async function kuyuFotograflari(kuyu = fotoKlasoru) {
   const kayitlar = await fotoIslem("readonly", (depo) => depo.index("kuyu").getAll(kuyu));
   return (kayitlar || []).sort((a, b) => a.eklenme - b.eklenme);
 }
@@ -1978,7 +2010,7 @@ async function fotoEkle(tur, dosyalar) {
     try { kucuk = await kucukOnizleme(dosya); } catch (hata) { /* çözülemeyen biçim: önizlemesiz saklanır */ }
     try {
       await fotoIslem("readwrite", (depo) => depo.put({
-        kimlik: yeniKimlik(), kuyu: aktifKimlik, tur, eklenme: Date.now() + i, blob: dosya, kucuk, tip: dosya.type, ad: dosya.name,
+        kimlik: yeniKimlik(), kuyu: fotoKlasoru, tur, eklenme: Date.now() + i, blob: dosya, kucuk, tip: dosya.type, ad: dosya.name,
       }));
       eklenen++;
     } catch (hata) {
@@ -1999,17 +2031,18 @@ async function numuneyiFotolaraEkle() {
     const blob = await numuneGorseli();
     const dosya = new File([blob], "Numune Listesi.jpg", { type: "image/jpeg" });
     const kucuk = await kucukOnizleme(dosya).catch(() => null);
-    const eskiler = (await kuyuFotograflari()).filter((k) => TEK_GORSEL_TURLERI.includes(k.tur));
+    klasoruKaydet(aktifKimlik, veri.kuyu_bilgileri.kuyu);
+    const eskiler = (await kuyuFotograflari(aktifKimlik)).filter((k) => TEK_GORSEL_TURLERI.includes(k.tur));
     await fotoIslem("readwrite", (depo) => {
       eskiler.forEach((k) => depo.delete(k.kimlik));
       depo.put({ kimlik: yeniKimlik(), kuyu: aktifKimlik, tur: "Numune", eklenme: Date.now(), blob: dosya, kucuk, tip: "image/jpeg", ad: dosya.name });
     });
     navigator.storage?.persist?.().catch(() => {});
-    await fotolariCiz();
+    aktarilmamislariSay();
     const ne = eskiler.length ? "güncellendi" : "eklendi";
     durumYaz(`Numune listesi Kuyu Fotoğrafları'na ${ne}`);
     sor("Kuyu Fotoğrafları", `Numune listesi görseli Kuyu Fotoğrafları'na ${ne}. Kaydet'e basınca bilgisayara da gider.`,
-      [["Tamam", true, true], ["Fotoğrafları Aç", "ac"]]).then((cevap) => { if (cevap === "ac") fotolariAc(); });
+      [["Tamam", true, true], ["Fotoğrafları Aç", "ac"]]).then((cevap) => { if (cevap === "ac") fotolariAc(aktifKimlik); });
   } catch (hata) {
     hataGoster("Görsel eklenemedi: " + (hata?.message || hata));
   }
@@ -2022,17 +2055,79 @@ async function fotoSil(kimlik) {
   await fotolariCiz();
 }
 
-async function kuyununFotograflariniSil(kuyu) {
-  const kayitlar = await kuyuFotograflari(kuyu);
+async function klasoruSil(kimlik) {
+  const kayitlar = await kuyuFotograflari(kimlik);
+  const ad = klasorAdi(kimlik) || "Adsız kuyu";
+  const cevap = await sor("Klasörü sil", `"${ad}" klasörü${kayitlar.length ? ` ve içindeki ${kayitlar.length} fotoğraf` : ""} telefondan silinsin mi? Bu geri alınamaz.`,
+    [["Sil", true, true], ["Vazgeç", false]]);
+  if (!cevap) return;
   if (kayitlar.length) await fotoIslem("readwrite", (depo) => kayitlar.forEach((k) => depo.delete(k.kimlik)));
+  const k = fotoKlasorleri();
+  delete k[kimlik];
+  depoYaz(DEPO_FOTO_KLASOR, k);
+  durumYaz(`"${ad}" klasörü silindi`);
+  await klasorListesiniCiz();
+  aktarilmamislariSay();
+}
+
+// Klasör listesi: adı olan kuyular + kuyusu silinmiş ama kaydı/fotoğrafı duran klasörler; en son kullanılan üstte
+async function klasorListesiniCiz() {
+  let kayitlar = [];
+  try { kayitlar = await tumFotograflar(); } catch (hata) { durumYaz("Fotoğraflar okunamadı: " + (hata?.message || hata)); }
+  const kimlikler = new Set([...Object.keys(fotoKlasorleri()), ...kayitlar.map((k) => k.kuyu)]);
+  for (const [kimlik, kayit] of Object.entries(kuyular)) if ((kayit.veri?.kuyu_bilgileri?.kuyu || "").trim()) kimlikler.add(kimlik);
+  const satirlar = [...kimlikler].filter(Boolean).map((kimlik) => {
+    const fotolar = kayitlar.filter((k) => k.kuyu === kimlik);
+    const son = Math.max(0, kuyular[kimlik]?.guncelleme || 0, fotoKlasorleri()[kimlik]?.guncelleme || 0, ...fotolar.map((k) => k.eklenme));
+    return { kimlik, ad: klasorAdi(kimlik), adet: fotolar.length, gonderilmedi: fotolar.filter((k) => !k.aktarildi).length, son };
+  }).filter((s) => s.ad || s.adet).sort((a, b) => b.son - a.son);
+  const kap = $("foto-klasorler");
+  kap.textContent = "";
+  if (!satirlar.length) kap.appendChild(Object.assign(document.createElement("p"), { className: "aciklama", textContent: "Henüz klasör yok. Bir kuyuya ad verince klasörü burada görünür." }));
+  for (const s of satirlar) {
+    const kart = Object.assign(document.createElement("div"), { className: "kuyu" + (s.kimlik === aktifKimlik ? " aktif" : "") });
+    const bilgi = document.createElement("div");
+    bilgi.appendChild(Object.assign(document.createElement("b"), { textContent: s.ad || "Adsız kuyu" }));
+    const alt = Object.assign(document.createElement("small"), { textContent: (s.adet ? `${s.adet} fotoğraf` : "boş") + (kuyular[s.kimlik] ? "" : " · kuyusu silinmiş") });
+    if (s.gonderilmedi) alt.appendChild(Object.assign(document.createElement("span"), { className: "gonderilmedi", textContent: ` · ${s.gonderilmedi} bilgisayara gitmedi` }));
+    bilgi.appendChild(alt);
+    bilgi.onclick = () => klasoruAc(s.kimlik);
+    kart.appendChild(bilgi);
+    const sil = Object.assign(document.createElement("button"), { className: "kucuk", textContent: "Sil" });
+    sil.onclick = () => klasoruSil(s.kimlik);
+    kart.appendChild(sil);
+    kap.appendChild(kart);
+  }
+}
+
+function klasoruAc(kimlik) {
+  fotoKlasoru = kimlik;
+  $("foto-klasor-listesi").hidden = true;
+  $("foto-detay").hidden = false;
+  $("dugme-foto-zip-ust").style.visibility = "visible";  // yer kaplamaya devam eder: başlık ortada kalır
+  $("foto-geri").textContent = "‹ Klasörler";
+  $("foto-baslik").textContent = klasorAdi(kimlik) || "Adsız kuyu";
+  $("katman-fotolar").querySelector(".katman-govde").scrollTop = 0;
+  fotolariCiz();
+}
+
+function klasorListesineDon() {
+  fotoKlasoru = null;
+  $("foto-detay").hidden = true;
+  $("foto-klasor-listesi").hidden = false;
+  $("dugme-foto-zip-ust").style.visibility = "hidden";
+  $("foto-geri").textContent = "Kapat";
+  $("foto-baslik").textContent = "Kuyu Fotoğrafları";
+  klasorListesiniCiz();
 }
 
 const fotoAdresleri = [];
 let aktarilmamisFoto = 0;
 
 async function fotolariCiz() {
-  const kuyuAdi = (veri.kuyu_bilgileri.kuyu || "").trim();
-  $("foto-kuyu-bilgi").textContent = kuyuAdi ? `${kuyuAdi} kuyusunun fotoğrafları` : "Kuyu adı henüz yazılmadı (Manevra › Kuyu bilgileri). ZIP için gerekir.";
+  if (!fotoKlasoru) return;
+  const kuyuAdi = klasorAdi(fotoKlasoru);
+  $("foto-kuyu-bilgi").textContent = kuyuAdi ? `${kuyuAdi} kuyusunun fotoğrafları` : "Bu kuyunun adı yok (Manevra › Kuyu bilgileri). ZIP için gerekir.";
   let kayitlar = [];
   try { kayitlar = await kuyuFotograflari(); } catch (hata) { durumYaz("Fotoğraflar okunamadı: " + (hata?.message || hata)); }
   fotoAdresleri.splice(0).forEach((adres) => URL.revokeObjectURL(adres));
@@ -2054,10 +2149,7 @@ async function fotolariCiz() {
       kap.appendChild(kutu);
     });
   }
-  const toplam = kayitlar.length;
-  aktarilmamisFoto = kayitlar.filter((k) => !k.aktarildi).length;
-  kaydetIsaretiniCiz();
-  $("dugme-kuyu-fotolari").textContent = toplam ? `Kuyu Fotoğraflarını Aç (${toplam})` : "Kuyu Fotoğraflarını Aç";
+  aktarilmamislariSay();
 }
 
 // --- ZIP (sıkıştırmasız; fotoğraflar zaten sıkıştırılmış) ---
@@ -2113,13 +2205,12 @@ function fotoUzantisi(kayit) {
   return tip || (kayit.ad?.match(/\.([a-z0-9]{2,5})$/i)?.[1] || "jpg").toLowerCase().replace("jpeg", "jpg");
 }
 
-const fotoKuyuAdi = () => (veri.kuyu_bilgileri.kuyu || "").trim().replace(/[\\/:*?"<>|]/g, "_");
 
 // ZIP'te yalnızca fotoğraflar var ("<kuyu> Fotoğrafları/<kuyu>_<Tür>_NN.jpg"; başka şirkete gönderilebilir, gizli bilgi
 // yok). Bilgisayardaki Logvera'nın gereksindiği liste (kimlik, tür, eklenme; aynı fotoğrafı iki kez eklememek için)
 // ayrı bir JSON'da döner; Kaydet onu ZIP'in yanında "<zip adı>.bilgi.json" olarak gönderir.
 // yalniz verilirse yalnızca o kayıtlar konur, numaralar yine tüm listeye göre.
-async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
+async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null, hamAd = kuyuAdi) {
   const klasor = `${kuyuAdi} Fotoğrafları`, dosyalar = [], liste = [];
   for (const tur of FOTO_TURLERI) {
     tumKayitlar.filter((k) => k.tur === tur).forEach((kayit, i) => {
@@ -2129,15 +2220,15 @@ async function fotoZipiHazirla(kuyuAdi, tumKayitlar, yalniz = null) {
       liste.push({ dosya: ad, kimlik: kayit.kimlik, tur, eklenme: kayit.eklenme });
     });
   }
-  const bilgi = JSON.stringify({ logvera: "fotolar", kuyu: veri.kuyu_bilgileri.kuyu.trim(), fotolar: liste }, null, 2);
+  const bilgi = JSON.stringify({ logvera: "fotolar", kuyu: hamAd, fotolar: liste }, null, 2);
   return { zip: await zipOlustur(dosyalar), adet: dosyalar.length, bilgi };
 }
 
+// bilgisayara gitmemiş fotoğraflar (adı olan tüm klasörlerde; Kaydet hepsini gönderir)
 async function aktarilmamislariSay() {
-  const kuyu = aktifKimlik;
   try {
-    const sayi = (await kuyuFotograflari(kuyu)).filter((k) => !k.aktarildi).length;
-    if (kuyu === aktifKimlik) { aktarilmamisFoto = sayi; kaydetIsaretiniCiz(); }
+    aktarilmamisFoto = (await tumFotograflar()).filter((k) => !k.aktarildi && klasorAdi(k.kuyu)).length;
+    kaydetIsaretiniCiz();
   } catch (hata) { /* fotoğraf deposu açılamadıysa nokta yalnız kuyu dosyasına bakar */ }
 }
 
@@ -2148,8 +2239,8 @@ async function fotolariAktarildiYap(kayitlar) {
 }
 
 async function fotoZipPaylas() {
-  const kuyuAdi = fotoKuyuAdi();
-  if (!kuyuAdi) return hataGoster("Önce kuyu adını yazın (Manevra › Kuyu bilgileri). Fotoğraflar kuyu adıyla adlandırılır.");
+  const kuyuAdi = dosyaAdinaUygun(klasorAdi(fotoKlasoru));
+  if (!kuyuAdi) return hataGoster("Bu kuyunun adı yok (Manevra › Kuyu bilgileri). Fotoğraflar kuyu adıyla adlandırılır.");
   const kayitlar = await kuyuFotograflari();
   if (!kayitlar.length) return hataGoster("Bu kuyu için henüz fotoğraf yok.");
   durumYaz("ZIP hazırlanıyor…");
@@ -2170,9 +2261,11 @@ async function fotoZipPaylas() {
   durumYaz(`İndirildi: ${ad} (${adet} fotoğraf)`);
 }
 
-function fotolariAc() {
+// klasör verilirse doğrudan o klasör, verilmezse klasör listesi
+function fotolariAc(klasor = null) {
   katmaniAc("katman-fotolar");
-  fotolariCiz();
+  if (klasor) klasoruAc(klasor);
+  else klasorListesineDon();
 }
 
 // ---------- Fotoğraf kuyruğu ----------
@@ -3632,7 +3725,7 @@ function baglantilariKur() {
   $("aralik-kaydet").onclick = () => (duzenlenenSpt ? sptDuzenleKaydet() : manevraAraliginiKaydet());
   $("aralik-sifirla").onclick = () => sptDuzenleKaydet(true);
   makineBagla();
-  $("dugme-kuyu-fotolari").onclick = fotolariAc;
+  $("dugme-kuyu-fotolari").onclick = () => fotolariAc();
   $("dugme-foto-zip").onclick = fotoZipPaylas;
   $("dugme-foto-zip-ust").onclick = fotoZipPaylas;
   for (const girdi of document.querySelectorAll("[data-foto-tur]")) {
@@ -3666,6 +3759,7 @@ function baglantilariKur() {
   $("dugme-numune-jpeg").onclick = numuneJpegIndir;
   $("dugme-numune-fotolara").onclick = numuneyiFotolaraEkle;
   $("dugme-numune-git").onclick = () => { katmaniKapat("katman-fotolar"); sekmeSec("numune"); };
+  $("foto-geri").onclick = () => (fotoKlasoru ? klasorListesineDon() : katmaniKapat("katman-fotolar"));
   $("numune-baslangic").addEventListener("keydown", (olay) => { if (olay.key === "Enter") $("numune-bitis").focus(); });
   $("numune-bitis").addEventListener("keydown", (olay) => { if (olay.key === "Enter") numuneKarotEkle(); });
   ["tcr-tcr", "tcr-scr", "tcr-rqd"].forEach((k, i, hepsi) => $(k).addEventListener("keydown", (olay) => {
@@ -3701,7 +3795,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v39";
+const SURUM = "v40";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
