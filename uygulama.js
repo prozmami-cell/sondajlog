@@ -1183,7 +1183,7 @@ async function paylas() {
   let dosyalar = [dosya], yeniFotolar = [];
   try {
     // adı olan her klasörün bilgisayara gitmemiş fotoğrafları: klasör başına bir ZIP (yalnız fotoğraf) + yanında bilgi
-    const tumu = await tumFotograflar(), zaman = dosyaZamani();
+    const tumu = await tumFotograflar(), zaman = dosyaZamani(), kullanilan = new Set();
     const klasorler = [...new Set(tumu.filter((k) => !k.aktarildi && klasorAdi(k.kuyu)).map((k) => k.kuyu))];
     if (klasorler.length) durumYaz("Fotoğraflar hazırlanıyor…");
     for (const kimlik of klasorler) {
@@ -1191,7 +1191,10 @@ async function paylas() {
       const klasorunkiler = tumu.filter((k) => k.kuyu === kimlik).sort((a, b) => a.eklenme - b.eklenme);
       const gidecek = klasorunkiler.filter((k) => !k.aktarildi);
       const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, klasorunkiler, gidecek, hamAd);
-      const ad = `${kuyuAdi} Fotoğrafları ${zaman}`;
+      // aynı adlı iki klasör (ör. iki ayrı SK-1) aynı paylaşımda: ZIP ve bilgisi birlikte "(2)" eki alır, eşleşme bozulmaz
+      let ad = `${kuyuAdi} Fotoğrafları ${zaman}`;
+      for (let n = 2; kullanilan.has(ad.toLocaleLowerCase("tr-TR")); n++) ad = `${kuyuAdi} Fotoğrafları ${zaman} (${n})`;
+      kullanilan.add(ad.toLocaleLowerCase("tr-TR"));
       dosyalar.push(new File([zip], `${ad}.zip`, { type: "application/zip" }),
         new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" }));  // ZIP'in yanında: bilgisayar fotoğrafları bununla alır
       yeniFotolar.push(...gidecek);
@@ -2001,7 +2004,9 @@ async function kucukOnizleme(dosya) {
 }
 
 async function fotoEkle(tur, dosyalar) {
-  if (!dosyalar.length) return;
+  // hedef klasör baştan sabitlenir: önizlemeler hazırlanırken listeye dönülse de fotoğraf bu klasöre gider
+  const klasor = fotoKlasoru;
+  if (!dosyalar.length || !klasor) return;
   navigator.storage?.persist?.().catch(() => {});  // tarayıcı yer açmak için fotoğrafları silmesin
   durumYaz("Fotoğraflar kaydediliyor…");
   let eklenen = 0;
@@ -2010,7 +2015,7 @@ async function fotoEkle(tur, dosyalar) {
     try { kucuk = await kucukOnizleme(dosya); } catch (hata) { /* çözülemeyen biçim: önizlemesiz saklanır */ }
     try {
       await fotoIslem("readwrite", (depo) => depo.put({
-        kimlik: yeniKimlik(), kuyu: fotoKlasoru, tur, eklenme: Date.now() + i, blob: dosya, kucuk, tip: dosya.type, ad: dosya.name,
+        kimlik: yeniKimlik(), kuyu: klasor, tur, eklenme: Date.now() + i, blob: dosya, kucuk, tip: dosya.type, ad: dosya.name,
       }));
       eklenen++;
     } catch (hata) {
@@ -2018,8 +2023,10 @@ async function fotoEkle(tur, dosyalar) {
       break;
     }
   }
-  await fotolariCiz();
-  durumYaz(`${eklenen} fotoğraf eklendi`);
+  if (fotoKlasoru === klasor) await fotolariCiz();
+  else if (!fotoKlasoru && !$("katman-fotolar").hidden) await klasorListesiniCiz();  // listeye dönülmüşse sayılar güncellensin
+  aktarilmamislariSay();
+  durumYaz(`${eklenen} fotoğraf eklendi: ${klasorAdi(klasor) || "Adsız kuyu"}`);
 }
 
 // Numune Listesi sekmesindeki görsel (JPEG İndir'deki aynısı) Kuyu Fotoğrafları'na; varsa eskisinin yerine geçer.
@@ -3795,7 +3802,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v40";
+const SURUM = "v41";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
