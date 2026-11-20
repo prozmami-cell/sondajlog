@@ -1574,10 +1574,13 @@ function makineMetrajOku(yazi) {
   return sayi === null || sayi < 0 ? { hata: true } : { deger: r2(sayi) };
 }
 
+// Seçili ayın tüm makinelerinin kayıtları tek listede (masaüstüyle aynı). Sıra yalnızca tarihe göre: başlama, aynıysa
+// bitiş (devam eden sonda), o da aynıysa giriş sırası; kuyu adının nasıl yazıldığı sırayı etkilemez.
 function gosterilenMakineKayitlari() {
-  const { kayitlar, makine } = makineVerisi();
-  return kayitlar.filter((k) => k.ay === makineAyAnahtari() && k.makine === makine)
-    .sort((a, b) => makineTarihSirasi(makineTarihCoz(a.baslama)) - makineTarihSirasi(makineTarihCoz(b.baslama)) || String(a.kuyu).localeCompare(String(b.kuyu), "tr"));
+  const { kayitlar } = makineVerisi();
+  return kayitlar.filter((k) => k.ay === makineAyAnahtari())
+    .sort((a, b) => makineTarihSirasi(makineTarihCoz(a.baslama)) - makineTarihSirasi(makineTarihCoz(b.baslama))
+      || makineTarihSirasi(makineTarihCoz(a.bitis)) - makineTarihSirasi(makineTarihCoz(b.bitis)));
 }
 
 const makineMetrajYazisi = (sayi) => (sayi === null || sayi === undefined || sayi === "" ? "" : yaziya(Number(sayi)));
@@ -1595,13 +1598,13 @@ function makineCiz() {
     kayitlar.map((k) => ({
       hucreler: [k.kuyu, k.baslama, k.bitis || "devam", makineMetrajYazisi(k.onerilen), makineMetrajYazisi(k.yapilan)],
       sinif: k.kimlik === makineDurumu.duzenlenen ? "secili" : "",
-      not: k.usta ? `Usta: ${k.usta}` : "",
-    })), "Bu ay için bu makinede kayıt yok");
+      not: [k.makine, k.usta && `Usta: ${k.usta}`].filter(Boolean).join(" · "),
+    })), "Bu ay için kayıt yok");
   satirlar.forEach((satir, i) => satir.addEventListener("click", () => makineDuzenle(kayitlar[i].kimlik)));
   const toplamSatir = Object.assign(document.createElement("div"), { className: "satir makine-toplam" });
   ["TOPLAM METRAJ", "", yaziya(toplam)].forEach((h) => toplamSatir.appendChild(Object.assign(document.createElement("span"), { textContent: h })));
   $("tablo-makine").appendChild(toplamSatir);
-  $("makine-bilgi").textContent = `${v.makine} · ${makineAyYazisi()} · ${kayitlar.length} kuyu`;
+  $("makine-bilgi").textContent = `${makineAyYazisi()} · tüm makineler · ${kayitlar.length} kuyu`;
   $("dugme-makine-gonder").textContent = makineBekliyor() ? "Bilgisayara Gönder •" : "Bilgisayara Gönder";
   $("dugme-makine-gonder").classList.toggle("ana", makineBekliyor());
 }
@@ -1622,7 +1625,9 @@ function makineDuzenle(kimlik) {
   $("makine-kuyu").value = kayit.kuyu || "";
   $("makine-onerilen").value = makineMetrajYazisi(kayit.onerilen);
   $("makine-yapilan").value = makineMetrajYazisi(kayit.yapilan);
+  // düzenlenen satırın makinesi ve ustası seçilir (yeni satırlar seçili makine/ustayla girilir)
   if (USTALAR.includes(kayit.usta)) makineYaz({ usta: kayit.usta });
+  if (MAKINELER.includes(kayit.makine)) makineYaz({ makine: kayit.makine });
   $("dugme-makine-ekle").textContent = "Güncelle";
   $("dugme-makine-sil").hidden = false;
   makineCiz();
@@ -1680,19 +1685,19 @@ function makineAyKaydir(adim) {
 // --- Excel (.xlsx): sıkıştırmasız ZIP içinde birkaç XML dosyası ---
 const xmlKacis = (yazi) => String(yazi).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function makineExcelXml(kayitlar, makine, proje) {
-  const sutunlar = "ABCDEF";
+function makineExcelXml(kayitlar, proje) {
+  const sutunlar = "ABCDEFG";
   const satirlar = [];
   const hucre = (sutun, satir, stil, icerik = "") => `<c r="${sutun}${satir}" s="${stil}"${icerik}`;
   const yazi = (sutun, satir, stil, metin) => `${hucre(sutun, satir, stil, ' t="inlineStr"')}><is><t xml:space="preserve">${xmlKacis(metin)}</t></is></c>`;
   const sayi = (sutun, satir, stil, deger) => `${hucre(sutun, satir, stil)}><v>${deger}</v></c>`;
   const bos = (sutun, satir, stil) => `${hucre(sutun, satir, stil)}/>`;
   const tarihSeri = (t) => (Date.UTC(t[0], t[1] - 1, t[2]) - Date.UTC(1899, 11, 30)) / 86400000;
-  // 1-2: lacivert başlıklar (A:F birleşik), 3: sütun başlıkları
-  for (const [no, metin] of [[1, proje], [2, `${makine} · ${makineAyYazisi().toLocaleUpperCase("tr-TR")}`]]) {
-    satirlar.push(`<row r="${no}">${yazi("A", no, 1, metin)}${[..."BCDEF"].map((s) => bos(s, no, 1)).join("")}</row>`);
+  // 1-2: lacivert başlıklar (A:G birleşik), 3: sütun başlıkları; ayın tüm makineleri tek sayfada
+  for (const [no, metin] of [[1, proje], [2, makineAyYazisi().toLocaleUpperCase("tr-TR")]]) {
+    satirlar.push(`<row r="${no}">${yazi("A", no, 1, metin)}${[..."BCDEFG"].map((s) => bos(s, no, 1)).join("")}</row>`);
   }
-  const basliklar = ["BAŞLAMA TARİHİ", "BİTİŞ TARİHİ", "KUYU ADI", "USTA", "ÖNERİLEN METRAJ", "YAPILAN METRAJ"];
+  const basliklar = ["BAŞLAMA TARİHİ", "BİTİŞ TARİHİ", "KUYU ADI", "MAKİNE", "USTA", "ÖNERİLEN METRAJ", "YAPILAN METRAJ"];
   satirlar.push(`<row r="3">${basliklar.map((b, i) => yazi(sutunlar[i], 3, 2, b)).join("")}</row>`);
   const ilk = 4, adet = Math.max(kayitlar.length, EXCEL_EN_AZ_SATIR);
   for (let i = 0; i < adet; i++) {
@@ -1701,18 +1706,18 @@ function makineExcelXml(kayitlar, makine, proje) {
     const bas = makineTarihCoz(k.baslama), bit = makineTarihCoz(k.bitis);
     const metraj = (s, d) => (d === null || d === undefined || d === "" ? bos(s, no, 5) : sayi(s, no, 5, Number(d)));
     satirlar.push(`<row r="${no}">${bas ? sayi("A", no, 4, tarihSeri(bas)) : yazi("A", no, 3, k.baslama || "")}`
-      + `${bit ? sayi("B", no, 4, tarihSeri(bit)) : yazi("B", no, 3, DEVAM_EDIYOR)}${yazi("C", no, 3, k.kuyu || "")}${yazi("D", no, 3, k.usta || "")}`
-      + `${metraj("E", k.onerilen)}${metraj("F", k.yapilan)}</row>`);
+      + `${bit ? sayi("B", no, 4, tarihSeri(bit)) : yazi("B", no, 3, DEVAM_EDIYOR)}${yazi("C", no, 3, k.kuyu || "")}${yazi("D", no, 3, k.makine || "")}`
+      + `${yazi("E", no, 3, k.usta || "")}${metraj("F", k.onerilen)}${metraj("G", k.yapilan)}</row>`);
   }
   const t = ilk + adet;
-  satirlar.push(`<row r="${t}">${yazi("A", t, 6, "TOPLAM METRAJ")}${[..."BCDE"].map((s) => bos(s, t, 8)).join("")}`
-    + `<c r="F${t}" s="7"><f>SUM(F${ilk}:F${t - 1})</f></c></row>`);
+  satirlar.push(`<row r="${t}">${yazi("A", t, 6, "TOPLAM METRAJ")}${[..."BCDEF"].map((s) => bos(s, t, 8)).join("")}`
+    + `<c r="G${t}" s="7"><f>SUM(G${ilk}:G${t - 1})</f></c></row>`);
   const sayfa = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-<cols>${[20, 20, 20, 18, 20, 20].map((g, i) => `<col min="${i + 1}" max="${i + 1}" width="${g}" customWidth="1"/>`).join("")}</cols>
+<cols>${[18, 18, 20, 18, 18, 18, 18].map((g, i) => `<col min="${i + 1}" max="${i + 1}" width="${g}" customWidth="1"/>`).join("")}</cols>
 <sheetData>${satirlar.join("")}</sheetData>
-<mergeCells count="2"><mergeCell ref="A1:F1"/><mergeCell ref="A2:F2"/></mergeCells>
+<mergeCells count="2"><mergeCell ref="A1:G1"/><mergeCell ref="A2:G2"/></mergeCells>
 <pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
 </worksheet>`;
   const stiller = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1735,7 +1740,7 @@ function makineExcelXml(kayitlar, makine, proje) {
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
-  const sayfaAdi = `${makine} ${AY_ADLARI[makineDurumu.ay - 1]}`.replace(/[\[\]:*?/\\]/g, "").slice(0, 31);
+  const sayfaAdi = makineAyYazisi().replace(/[\[\]:*?/\\]/g, "").slice(0, 31);
   return {
     "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
@@ -1754,9 +1759,9 @@ async function makineExcelIndir() {
   const v = makineVerisi();
   const kayitlar = gosterilenMakineKayitlari();
   const proje = (v.proje || VARSAYILAN_PROJE).trim().toLocaleUpperCase("tr-TR");
-  const parcalar = makineExcelXml(kayitlar, v.makine, proje);
+  const parcalar = makineExcelXml(kayitlar, proje);
   const xlsx = await zipOlustur(Object.entries(parcalar).map(([ad, metin]) => ({ ad, blob: new Blob([metin], { type: "application/xml" }) })));
-  const ad = `Makine Metrajı - ${v.makine} - ${makineAyYazisi()}.xlsx`;
+  const ad = `Makine Metrajı - ${makineAyYazisi()}.xlsx`;
   const dosya = new File([xlsx], ad, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
     try {
@@ -3813,7 +3818,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v43";
+const SURUM = "v44";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
