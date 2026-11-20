@@ -1469,8 +1469,8 @@ async function motoruHazirla() {
 // Masaüstündeki "Makine Metrajı" sayfasının telefondaki karşılığı: makinelerin aylık kuyu metrajları. Kayıtlar bu
 // telefonda (localStorage) kuyu dosyalarından ayrı tutulur. Excel, masaüstündekiyle aynı düzende üretilir.
 const DEPO_MAKINE = "sondajlog.makine";
-const MAKINELER = ["HANJİN", "TSM-750"];
-const USTALAR = ["ENGİN YAVUZ", "AYHAN ÖZBAY"];
+const MAKINELER = ["HANJİN", "TSM-750", "ALİ MUĞULTAY", "RECEP MUĞULTAY"];  // masaüstüyle aynı tutulur
+const USTALAR = ["ENGİN YAVUZ", "AYHAN ÖZBAY", "ALİ MUĞULTAY", "RECEP MUĞULTAY"];
 const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const VARSAYILAN_PROJE = "ANTALYA-ALANYA OTOYOL PROJESİ";
 const DEVAM_EDIYOR = "DEVAM EDİYOR";
@@ -3813,7 +3813,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v42";
+const SURUM = "v43";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.
