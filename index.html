@@ -295,14 +295,14 @@
   </div>
   <div class="katman-govde">
     <div class="menu-sayfalar">
-      <button id="menu-makine"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Makine Metrajı</button>
-      <button id="menu-fotolar"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Kuyu Fotoğrafları</button>
+      <button id="menu-makine"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Makine Metrajı<span class="menu-not" id="menu-makine-not"></span></button>
+      <button id="menu-fotolar"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Kuyu Fotoğrafları<span class="menu-not" id="menu-fotolar-not"></span></button>
     </div>
     <div class="liste-baslik"><span>Kuyular</span></div>
     <div id="kuyu-listesi"></div>
     <label class="dosya-dugmesi genis">Dosyadan Aç (.json)<input type="file" accept=".json,application/json" id="dosya-ac" hidden></label>
     <p class="aciklama">Kayıtlar bu telefonda otomatik saklanır.</p>
-    <p class="aciklama"><b>Bilgisayara anında göndermek için:</b> üstteki <b>Kaydet</b> düğmesi → <b>Dosyalara Kaydet</b> → OneDrive › <b>Logvera</b> klasörü → Kaydet. Aynı adlı dosya varsa <b>Değiştir</b>'i seçin. Bilgisayardaki Logvera'da "Telefonu İzle" açıksa kuyu kendiliğinden güncellenir.</p>
+    <p class="aciklama"><b>Bilgisayara anında göndermek için:</b> üstteki <b>Kaydet</b> düğmesi → <b>Dosyalara Kaydet</b> → OneDrive › <b>Logvera</b> klasörü → Kaydet. Aynı adlı dosya varsa <b>Değiştir</b>'i seçin. Bilgisayardaki Logvera'da "Telefonu İzle" açıksa kuyu kendiliğinden güncellenir. Kaydet yalnızca kuyu dosyasını gönderir; kuyu fotoğrafları ve makine metrajı kendi sayfalarındaki <b>Bilgisayara Gönder</b> ile gider.</p>
   </div>
 </div>
 
@@ -351,7 +351,7 @@
       <button id="dugme-makine-gonder">Bilgisayara Gönder</button>
       <label class="dosya-dugmesi">Bilgisayardan Al<input type="file" accept=".zip,application/zip" id="makine-bilgisayardan" hidden></label>
     </div>
-    <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara:</b> üstteki <b>Kaydet</b> (ya da Bilgisayara Gönder) değişiklikleri de gönderir → OneDrive › Logvera. Bilgisayarda "Telefonu İzle" açıksa Makine Metrajı listesine kendiliğinden eklenir; aynı satır iki tarafta değiştiyse en son değiştirilen geçerli olur.</p>
+    <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara:</b> <b>Bilgisayara Gönder</b> → Dosyalara Kaydet → OneDrive › Logvera. Bilgisayarda "Telefonu İzle" açıksa Makine Metrajı listesine kendiliğinden eklenir; aynı satır iki tarafta değiştiyse en son değiştirilen geçerli olur.</p>
     <p class="aciklama"><b>Bilgisayardan:</b> Bilgisayardan Al → OneDrive › Logvera › <b>Makine Metrajı - Bilgisayar.zip</b>. Bilgisayardaki satırlar buradakilerle birleşir.</p>
   </div>
 </div>
@@ -407,8 +407,9 @@
           <label class="dosya-dugmesi">Galeriden Seç<input type="file" accept="image/*" multiple data-foto-tur="Beton" hidden></label>
         </div>
       </div>
-      <button class="ana genis" id="dugme-foto-zip">ZIP Olarak İndir / Paylaş</button>
-      <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara:</b> üstteki <b>Kaydet</b> yeni fotoğrafları kuyu dosyasıyla birlikte gönderir (OneDrive › Logvera); bilgisayarda "Telefonu İzle" açıksa fotoğraflar kendiliğinden kuyunun klasörüne eklenir.</p>
+      <button class="ana genis" id="dugme-foto-gonder">Bilgisayara Gönder</button>
+      <button class="genis" id="dugme-foto-zip">ZIP Olarak İndir / Paylaş</button>
+      <p class="aciklama" style="margin-top: 10px"><b>Bilgisayara Gönder:</b> bu kuyunun bilgisayara gitmemiş fotoğrafları (ZIP + yanında bilgi dosyası) → Dosyalara Kaydet → OneDrive › Logvera; bilgisayarda "Telefonu İzle" açıksa kuyunun klasörüne kendiliğinden eklenir. <b>ZIP Olarak İndir:</b> bütün fotoğraflar, yalnızca fotoğraf; başka firmaya gönderilebilir.</p>
       <p class="aciklama">ZIP'te yalnızca fotoğraflar var, tek klasörde: SK-1_Lokasyon_01.jpg, SK-1_Sandik_01.jpg … Başka firmaya olduğu gibi gönderilebilir.</p>
     </div>
   </div>

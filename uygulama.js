@@ -83,8 +83,11 @@ function kaydet() {
 function kaydetIsaretiniCiz() {
   const kayit = kuyular[aktifKimlik];
   const bekleyen = !!kayit && ((kayit.veri.manevralar || []).length + (kayit.veri.birimler || []).length + (kayit.veri.numune_listesi?.karotlar || []).length + (kayit.veri.ud_listesi || []).length > 0 && !(kayit.disaAktarim >= kayit.guncelleme)
-    || aktarilmamisFoto > 0 || makineBekliyor());  // bilgisayara gitmemiş fotoğraf / makine metrajı da bekleyen sayılır
+);
   $("kaydet-isareti").hidden = !bekleyen;
+  // fotoğraf ve makine metrajı kendi düğmeleriyle gider: bekleyen varsa ☰ menüde ve sayfalarında yazar
+  $("menu-fotolar-not").textContent = aktarilmamisFoto ? `${aktarilmamisFoto} gönderilmedi` : "";
+  $("menu-makine-not").textContent = makineBekliyor() ? "gönderilmedi" : "";
 }
 
 function kuyuAc(kimlik) {
@@ -1177,47 +1180,16 @@ function dosyaAdi() {
 
 // Kaydet: kuyu dosyası ve bilgisayara henüz gitmemiş kuyu fotoğrafları aynı paylaşımda (OneDrive › Logvera). Bilgisayarda
 // "Telefonu İzle" ZIP'i görünce fotoğrafları kuyunun klasörüne ekler. ZIP adı her seferinde farklıdır, üzerine yazılmaz.
+// Kaydet: yalnızca açık kuyunun dosyası (OneDrive › Logvera). Kuyu fotoğrafları ve makine metrajı kendi sayfalarındaki
+// "Bilgisayara Gönder" düğmeleriyle ayrı ayrı gönderilir; her paylaşım tek bir yere kaydedilir.
 async function paylas() {
   const metin = JSON.stringify(veri, null, 2);
   const dosya = new File([metin], dosyaAdi(), { type: "application/json" });
-  let dosyalar = [dosya], yeniFotolar = [];
-  try {
-    // adı olan her klasörün bilgisayara gitmemiş fotoğrafları: klasör başına bir ZIP (yalnız fotoğraf) + yanında bilgi
-    const tumu = await tumFotograflar(), zaman = dosyaZamani(), kullanilan = new Set();
-    const klasorler = [...new Set(tumu.filter((k) => !k.aktarildi && klasorAdi(k.kuyu)).map((k) => k.kuyu))];
-    if (klasorler.length) durumYaz("Fotoğraflar hazırlanıyor…");
-    for (const kimlik of klasorler) {
-      const hamAd = klasorAdi(kimlik), kuyuAdi = dosyaAdinaUygun(hamAd);
-      const klasorunkiler = tumu.filter((k) => k.kuyu === kimlik).sort((a, b) => a.eklenme - b.eklenme);
-      const gidecek = klasorunkiler.filter((k) => !k.aktarildi);
-      const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, klasorunkiler, gidecek, hamAd);
-      // aynı adlı iki klasör (ör. iki ayrı SK-1) aynı paylaşımda: ZIP ve bilgisi birlikte "(2)" eki alır, eşleşme bozulmaz
-      let ad = `${kuyuAdi} Fotoğrafları ${zaman}`;
-      for (let n = 2; kullanilan.has(ad.toLocaleLowerCase("tr-TR")); n++) ad = `${kuyuAdi} Fotoğrafları ${zaman} (${n})`;
-      kullanilan.add(ad.toLocaleLowerCase("tr-TR"));
-      dosyalar.push(new File([zip], `${ad}.zip`, { type: "application/zip" }),
-        new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" }));  // ZIP'in yanında: bilgisayar fotoğrafları bununla alır
-      yeniFotolar.push(...gidecek);
-    }
-  } catch (hata) {
-    dosyalar = [dosya];
-    yeniFotolar = [];
-    durumYaz("Fotoğraflar eklenemedi: " + (hata?.message || hata));
-  }
-  const makineGidecek = makineBekliyor();
-  if (makineGidecek) dosyalar.push(await makineAktarimDosyasi());
-  if (dosyalar.length > 1 && !(navigator.canShare && navigator.canShare({ files: dosyalar }))) {
-    dosyalar = [dosya];  // birden çok dosya birlikte paylaşılamıyorsa yalnız kuyu dosyası
-    yeniFotolar = [];
-  }
-  const makineGitti = dosyalar.some((d) => d.name.startsWith("Makine Metrajı "));
-  if (navigator.canShare && navigator.canShare({ files: dosyalar })) {
+  if (navigator.canShare && navigator.canShare({ files: [dosya] })) {
     try {
-      await navigator.share({ files: dosyalar, title: dosyaAdi() });
+      await navigator.share({ files: [dosya], title: dosyaAdi() });
       disaAktarildi();
-      if (yeniFotolar.length) await fotolariAktarildiYap(yeniFotolar);
-      if (makineGitti) makineAktarildi();
-      durumYaz("Kaydedildi: " + dosyaAdi() + (yeniFotolar.length ? ` + ${yeniFotolar.length} fotoğraf` : "") + (makineGitti ? " + makine metrajı" : ""));
+      durumYaz("Kaydedildi: " + dosyaAdi());
     } catch (hata) {
       if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
     }
@@ -1540,6 +1512,7 @@ async function makineAktarimDosyasi() {
 function makineAktarildi() {
   makineYaz({ sonAktarim: Date.now() });
   kaydetIsaretiniCiz();
+  makineCiz();
 }
 
 async function makineBilgisayaraGonder() {
@@ -1629,6 +1602,8 @@ function makineCiz() {
   ["TOPLAM METRAJ", "", yaziya(toplam)].forEach((h) => toplamSatir.appendChild(Object.assign(document.createElement("span"), { textContent: h })));
   $("tablo-makine").appendChild(toplamSatir);
   $("makine-bilgi").textContent = `${v.makine} · ${makineAyYazisi()} · ${kayitlar.length} kuyu`;
+  $("dugme-makine-gonder").textContent = makineBekliyor() ? "Bilgisayara Gönder •" : "Bilgisayara Gönder";
+  $("dugme-makine-gonder").classList.toggle("ana", makineBekliyor());
 }
 
 function makineFormuTemizle() {
@@ -2048,7 +2023,7 @@ async function numuneyiFotolaraEkle() {
     aktarilmamislariSay();
     const ne = eskiler.length ? "güncellendi" : "eklendi";
     durumYaz(`Numune listesi Kuyu Fotoğrafları'na ${ne}`);
-    sor("Kuyu Fotoğrafları", `Numune listesi görseli Kuyu Fotoğrafları'na ${ne}. Kaydet'e basınca bilgisayara da gider.`,
+    sor("Kuyu Fotoğrafları", `Numune listesi görseli Kuyu Fotoğrafları'na ${ne}. Kuyu Fotoğrafları'ndaki "Bilgisayara Gönder" ile bilgisayara gider.`,
       [["Tamam", true, true], ["Fotoğrafları Aç", "ac"]]).then((cevap) => { if (cevap === "ac") fotolariAc(aktifKimlik); });
   } catch (hata) {
     hataGoster("Görsel eklenemedi: " + (hata?.message || hata));
@@ -2100,6 +2075,11 @@ async function klasorListesiniCiz() {
     bilgi.appendChild(alt);
     bilgi.onclick = () => klasoruAc(s.kimlik);
     kart.appendChild(bilgi);
+    if (s.gonderilmedi && s.ad) {
+      const gonder = Object.assign(document.createElement("button"), { className: "kucuk ana", textContent: "Gönder" });
+      gonder.onclick = () => klasoruBilgisayaraGonder(s.kimlik);
+      kart.appendChild(gonder);
+    }
     const sil = Object.assign(document.createElement("button"), { className: "kucuk", textContent: "Sil" });
     sil.onclick = () => klasoruSil(s.kimlik);
     kart.appendChild(sil);
@@ -2133,6 +2113,7 @@ let aktarilmamisFoto = 0;
 
 async function fotolariCiz() {
   if (!fotoKlasoru) return;
+  const klasor = fotoKlasoru;
   const kuyuAdi = klasorAdi(fotoKlasoru);
   $("foto-kuyu-bilgi").textContent = kuyuAdi ? `${kuyuAdi} kuyusunun fotoğrafları` : "Bu kuyunun adı yok (Manevra › Kuyu bilgileri). ZIP için gerekir.";
   let kayitlar = [];
@@ -2155,6 +2136,11 @@ async function fotolariCiz() {
       kutu.appendChild(sil);
       kap.appendChild(kutu);
     });
+  }
+  if (klasor === fotoKlasoru) {
+    const bekleyen = kayitlar.filter((k) => !k.aktarildi).length;
+    $("dugme-foto-gonder").textContent = bekleyen ? `Bilgisayara Gönder (${bekleyen} fotoğraf)` : "Bilgisayara Gönder (hepsi gönderildi)";
+    $("dugme-foto-gonder").classList.toggle("ana", bekleyen > 0);
   }
   aktarilmamislariSay();
 }
@@ -2241,8 +2227,32 @@ async function aktarilmamislariSay() {
 
 async function fotolariAktarildiYap(kayitlar) {
   await fotoIslem("readwrite", (depo) => kayitlar.forEach((k) => depo.put({ ...k, aktarildi: true })));
-  aktarilmamisFoto = 0;
-  kaydetIsaretiniCiz();
+  await aktarilmamislariSay();
+}
+
+// Bir kuyu klasörünün bilgisayara gitmemiş fotoğrafları: ZIP (yalnız fotoğraf) + yanında "<zip adı>.bilgi.json".
+// İkisi aynı paylaşımda gider ki OneDrive › Logvera'da yan yana dursun; bilgisayar fotoğrafları bu ikisiyle alır.
+async function klasoruBilgisayaraGonder(kimlik) {
+  const hamAd = klasorAdi(kimlik);
+  if (!hamAd) return hataGoster("Bu kuyunun adı yok (Manevra › Kuyu bilgileri); fotoğraflar kuyu adıyla gönderilir.");
+  const tumu = await kuyuFotograflari(kimlik), gidecek = tumu.filter((k) => !k.aktarildi);
+  if (!gidecek.length) return sor("Bilgisayara Gönder", `"${hamAd}" klasörünün bütün fotoğrafları bilgisayara gönderilmiş.`, [["Tamam", true, true]]);
+  durumYaz("Fotoğraflar hazırlanıyor…");
+  const kuyuAdi = dosyaAdinaUygun(hamAd);
+  const { zip, bilgi } = await fotoZipiHazirla(kuyuAdi, tumu, gidecek, hamAd);
+  const ad = `${kuyuAdi} Fotoğrafları ${dosyaZamani()}`;
+  const dosyalar = [new File([zip], `${ad}.zip`, { type: "application/zip" }), new File([bilgi], `${ad}.bilgi.json`, { type: "application/json" })];
+  if (!(navigator.canShare && navigator.canShare({ files: dosyalar }))) return hataGoster("Bu telefonda dosya paylaşılamıyor.");
+  try {
+    await navigator.share({ files: dosyalar, title: `${ad}.zip` });
+    await fotolariAktarildiYap(gidecek);
+    durumYaz(`${hamAd}: ${gidecek.length} fotoğraf gönderildi (OneDrive › Logvera)`);
+  } catch (hata) {
+    if (hata.name !== "AbortError") durumYaz("Paylaşılamadı: " + hata.message);
+    return;
+  }
+  if (fotoKlasoru === kimlik) await fotolariCiz();
+  else if (!$("katman-fotolar").hidden) await klasorListesiniCiz();
 }
 
 async function fotoZipPaylas() {
@@ -3734,6 +3744,7 @@ function baglantilariKur() {
   makineBagla();
   $("dugme-kuyu-fotolari").onclick = () => fotolariAc();
   $("dugme-foto-zip").onclick = fotoZipPaylas;
+  $("dugme-foto-gonder").onclick = () => klasoruBilgisayaraGonder(fotoKlasoru);
   $("dugme-foto-zip-ust").onclick = fotoZipPaylas;
   for (const girdi of document.querySelectorAll("[data-foto-tur]")) {
     girdi.onchange = async () => { await fotoEkle(girdi.dataset.fotoTur, girdi.files); girdi.value = ""; };
@@ -3802,7 +3813,7 @@ function baglantilariKur() {
 }
 
 // sw.js'deki ONBELLEK adıyla aynı tutulur; açılışta alttaki durum satırında görünür (güncelleme geldi mi diye bakmak için)
-const SURUM = "v41";
+const SURUM = "v42";
 
 // Ana ekrandaki uygulama iPhone'da arka planda donup kalır, öne gelince sayfayı yeniden yüklemez; eski kodla
 // sürer. Bu yüzden her öne gelişte yeni sürüm aranır; yeni service worker devreye girince sayfa yenilenir.

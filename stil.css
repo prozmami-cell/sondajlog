@@ -214,6 +214,7 @@ button.kopya.tamam { background: var(--ud); color: #15803D; }
 .menu-sayfalar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
 .menu-sayfalar button { flex-direction: column; gap: 6px; min-height: 76px; background: var(--kart); border: 1px solid var(--cizgi); font-weight: 600; }
 .menu-sayfalar svg { width: 24px; height: 24px; color: var(--vurgu); }
+.menu-not { font-size: 12px; font-weight: 600; color: #B45309; min-height: 14px; }
 /* Makine metrajı */
 .makine-ay { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .makine-ay button { min-width: 44px; font-size: 20px; }
